@@ -1,37 +1,70 @@
-import axios from "axios";
-import { getSession } from "next-auth/react";
+import axios, { type AxiosError } from "axios";
+import { signOut } from "next-auth/react";
+import type { ClothingItem, ClothingItemListResponse } from "@/types/clothing";
 
-const apiClient = axios.create({
-  baseURL: "/api/v1",
-});
-
-apiClient.interceptors.request.use(async (config) => {
-  const session = await getSession();
-  if (session) {
-    // NextAuth v5 exposes the raw JWT via the session token cookie;
-    // we attach it here so the backend can verify the user identity.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- session type doesn't expose accessToken by default
-    const token = (session as any).accessToken ?? "";
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ApiError";
   }
-  return config;
+}
+
+// All requests go through /api/proxy, which injects the NextAuth session JWT
+// before forwarding to the backend.
+const apiClient = axios.create({
+  baseURL: "/api/proxy",
 });
 
-export async function getWardrobe() {
-  // TODO: implement — GET /clothing?page=1&limit=20
-  throw new Error("Not implemented");
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError<{ detail?: string }>) => {
+    const httpStatus = error.response?.status;
+
+    if (httpStatus === 401) {
+      await signOut({ callbackUrl: "/login" });
+      return Promise.reject(new ApiError(401, "Session expired. Please sign in again."));
+    }
+
+    const message =
+      error.response?.data?.detail ?? "An unexpected error occurred. Please try again.";
+
+    return Promise.reject(new ApiError(httpStatus ?? 500, message));
+  },
+);
+
+export async function getWardrobe(
+  page = 1,
+  limit = 20,
+  category?: string,
+): Promise<ClothingItemListResponse> {
+  const params: Record<string, string | number> = { page, limit };
+  if (category) params.category = category;
+  const { data } = await apiClient.get<ClothingItemListResponse>("/clothing", { params });
+  return data;
 }
 
-export async function uploadClothingItem(_formData: FormData) {
-  // TODO: implement — POST /clothing (multipart/form-data)
-  throw new Error("Not implemented");
+export async function uploadClothingItem(file: File): Promise<ClothingItem> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const { data } = await apiClient.post<ClothingItem>("/clothing/upload", formData);
+  return data;
 }
 
-export async function getRecommendations() {
-  // TODO: implement — GET /recommendations
-  throw new Error("Not implemented");
+export async function getClothingItem(id: string): Promise<ClothingItem> {
+  const { data } = await apiClient.get<ClothingItem>(`/clothing/${id}`);
+  return data;
+}
+
+export async function deleteClothingItem(id: string): Promise<void> {
+  await apiClient.delete(`/clothing/${id}`);
+}
+
+export async function getRecommendations(): Promise<unknown> {
+  const { data } = await apiClient.get("/recommendations");
+  return data;
 }
 
 export default apiClient;

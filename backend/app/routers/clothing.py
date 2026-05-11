@@ -1,5 +1,6 @@
 """Clothing router — CRUD for wardrobe items and photo upload."""
 
+import logging
 import os
 import uuid
 from pathlib import Path
@@ -19,6 +20,7 @@ from app.schemas.clothing_item import (
     ClothingItemUpdate,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/clothing", tags=["clothing"])
 settings = get_settings()
 
@@ -78,7 +80,7 @@ async def upload_clothing(
     if image.content_type not in _ALLOWED_CONTENT_TYPES:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=f"File type not allowed. Accepted: jpeg, png, webp",
+            detail="File type not allowed. Accepted: jpeg, png, webp",
         )
 
     contents = await image.read()
@@ -95,11 +97,18 @@ async def upload_clothing(
 
     item_id = uuid.uuid4()
     user_dir = Path(settings.upload_dir) / str(current_user.id)
-    user_dir.mkdir(parents=True, exist_ok=True)
     filename = f"{item_id}{suffix}"
     file_path = user_dir / filename
 
-    file_path.write_bytes(contents)
+    try:
+        user_dir.mkdir(parents=True, exist_ok=True)
+        file_path.write_bytes(contents)
+    except OSError as exc:
+        logger.error("Failed to save uploaded image to %s: %s", file_path, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save image. Please try again.",
+        ) from exc
 
     image_url = f"/uploads/{current_user.id}/{filename}"
     item = ClothingItem(
@@ -113,7 +122,12 @@ async def upload_clothing(
     await db.commit()
     await db.refresh(item)
 
-    await arq_pool.enqueue_job("analyze_clothing_image", str(item.id))
+    try:
+        await arq_pool.enqueue_job("analyze_clothing_image", str(item.id))
+    except Exception as exc:
+        # Redis being down must not fail the upload — the item is already saved.
+        # The worker can be re-triggered manually or via a retry mechanism later.
+        logger.error("Failed to enqueue AI analysis job for item %s: %s", item.id, exc)
 
     return item
 
