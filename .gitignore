@@ -8,8 +8,9 @@ __pycache__/
 *.pyc
 .venv/
 
-# Uploads
-uploads/
+# Uploads (keep the directory skeleton, ignore the actual photos)
+uploads/*
+!uploads/.gitkeep
 
 # Build outputs
 .next/
@@ -26,3 +27,6 @@ Thumbs.db
 # IDE
 .vscode/settings.json
 .idea/
+
+#Claude
+CLAUDE.md
