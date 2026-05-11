@@ -26,6 +26,11 @@ async def get_or_create_user(
     )
     user = result.scalar_one_or_none()
 
+    if not user:
+        # Same email, different OAuth provider — treat as the same account
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+
     if user:
         user.name = name
         user.avatar_url = avatar_url

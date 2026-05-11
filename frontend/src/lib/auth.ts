@@ -32,6 +32,37 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   session: { strategy: "jwt" },
+
+  // NextAuth v5 encrypts session JWTs (JWE) by default, but the Python backend
+  // verifies plain HS256 JWTs with NEXTAUTH_SECRET. Override encode/decode so
+  // the cookie value is a standard 3-part HS256 token the backend can read.
+  jwt: {
+    async encode({ secret, token }) {
+      const { SignJWT } = await import("jose");
+      const key = new TextEncoder().encode(
+        Array.isArray(secret) ? secret[0] : secret,
+      );
+      return new SignJWT(token as Record<string, unknown>)
+        .setProtectedHeader({ alg: "HS256" })
+        .setIssuedAt()
+        .setExpirationTime("30d")
+        .sign(key);
+    },
+    async decode({ secret, token }) {
+      if (!token) return null;
+      const { jwtVerify } = await import("jose");
+      const key = new TextEncoder().encode(
+        Array.isArray(secret) ? secret[0] : secret,
+      );
+      try {
+        const { payload } = await jwtVerify(token, key, { algorithms: ["HS256"] });
+        return payload;
+      } catch {
+        return null;
+      }
+    },
+  },
+
   callbacks: {
     async signIn() {
       return true;

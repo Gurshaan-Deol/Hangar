@@ -1,17 +1,40 @@
 """OpenAI-compatible AI provider (works with OpenAI, Google Gemini via OpenAI endpoint, etc.)."""
 
+from __future__ import annotations
+
 import base64
 import json
 import logging
 import mimetypes
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import httpx
 
 from app.config import get_settings
 from app.services.ai.base import BaseAIProvider, ClothingAnalysis
 
+if TYPE_CHECKING:
+    from app.services.weather import WeatherData
+
 logger = logging.getLogger(__name__)
+
+
+def _parse_json_response(raw: str) -> dict:
+    """Parse a JSON response from the AI, handling markdown fences and escaped underscores."""
+    text = raw.strip()
+    # Strip markdown code fences (```json ... ``` or ``` ... ```)
+    if text.startswith("```"):
+        lines = text.splitlines()
+        text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+    # Some models escape underscores in JSON keys (markdown artifact)
+    text = text.replace(r"\_", "_")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        logger.error("AI returned non-JSON response: %s", raw)
+        raise ValueError(f"AI response was not valid JSON: {raw[:200]}")
+
 
 _ANALYZE_PROMPT = """\
 Analyze this clothing item and return a JSON object with exactly these fields:
@@ -84,12 +107,7 @@ class OpenAIProvider(BaseAIProvider):
             response.raise_for_status()
 
         raw = response.json()["choices"][0]["message"]["content"]
-
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            logger.error("AI returned non-JSON response: %s", raw)
-            raise ValueError(f"AI response was not valid JSON: {raw[:200]}")
+        data = _parse_json_response(raw)
 
         return ClothingAnalysis(
             name=data["name"],
@@ -102,29 +120,41 @@ class OpenAIProvider(BaseAIProvider):
         )
 
     async def generate_outfit_recommendation(
-        self, items: list[dict], weather: dict
+        self,
+        items: list[dict],
+        weather: WeatherData,
+        occasion: str = "casual",
     ) -> dict:
-        """Select 3-5 items from the wardrobe that suit the current weather."""
-        prompt = (
-            f"Weather conditions:\n{json.dumps(weather, indent=2)}\n\n"
-            f"Available clothing items:\n{json.dumps(items, indent=2)}\n\n"
-            "Select 3-5 items from the list that work well together for these weather conditions. "
-            "Return a JSON object with exactly these fields:\n"
-            '{"selected_item_ids": ["id1", "id2", ...], "reasoning": "explanation", "occasion": "casual/formal/etc"}\n'
-            "Return only the JSON object, nothing else."
-        )
+        """Select 3-5 items from the wardrobe that suit the current weather and occasion."""
+        user_prompt = f"""
+The user wants an outfit for: {occasion}
+Current weather: {weather.temperature}°C, feels like {weather.feels_like}°C, {weather.condition}, humidity {weather.humidity}%
+
+Available clothing items:
+{json.dumps(items, indent=2)}
+
+Select 3-5 items that work well together. Consider:
+- Temperature appropriateness (layers for cold, light for heat, waterproof for rain)
+- Style cohesion (items should match in formality and aesthetic)
+- Color coordination
+
+Return a JSON object with exactly:
+{{
+  "selected_item_ids": ["id1", "id2", "id3"],
+  "reasoning": "Brief explanation of why these items work together and suit the weather",
+  "occasion": "{occasion}"
+}}
+Return only the JSON object, nothing else.
+"""
 
         payload = {
             "model": self._text_model or self._vision_model,
             "messages": [
                 {
                     "role": "system",
-                    "content": (
-                        "You are a fashion expert AI. Suggest outfits based on available clothing "
-                        "and weather. Always respond with valid JSON only."
-                    ),
+                    "content": "You are a personal stylist AI. Select clothing items that work well together for the given weather and occasion. Always respond with valid JSON only.",
                 },
-                {"role": "user", "content": prompt},
+                {"role": "user", "content": user_prompt},
             ],
             "max_tokens": 512,
         }
@@ -138,12 +168,7 @@ class OpenAIProvider(BaseAIProvider):
             response.raise_for_status()
 
         raw = response.json()["choices"][0]["message"]["content"]
-
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            logger.error("AI returned non-JSON response: %s", raw)
-            raise ValueError(f"AI response was not valid JSON: {raw[:200]}")
+        return _parse_json_response(raw)
 
     async def health_check(self) -> bool:
         """Return True if the API endpoint is reachable."""

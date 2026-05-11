@@ -1,5 +1,7 @@
 """Abstract base class and data types that every AI provider must implement."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -17,14 +19,6 @@ class ClothingAnalysis:
     confidence: float
 
 
-@dataclass
-class WeatherData:
-    temperature_c: float
-    weather_code: int
-    wind_speed_kmh: float
-    precipitation_mm: float
-
-
 class BaseAIProvider(ABC):
     """All AI providers must implement these three methods."""
 
@@ -35,9 +29,12 @@ class BaseAIProvider(ABC):
 
     @abstractmethod
     async def generate_outfit_recommendation(
-        self, items: list[dict], weather: dict
+        self,
+        items: list[dict],
+        weather: "WeatherData",  # noqa: F821 — resolved at runtime
+        occasion: str = "casual",
     ) -> dict:
-        """Suggest an outfit from the wardrobe given current weather conditions."""
+        """Suggest an outfit from the wardrobe given current weather and occasion."""
         ...
 
     @abstractmethod
@@ -61,3 +58,12 @@ def get_ai_provider() -> BaseAIProvider:
     raise ValueError(
         f"Unknown AI provider: {provider!r}. Must be 'openai', 'google', or 'ollama'."
     )
+
+
+# Late import alias so callers can do `from app.services.ai.base import WeatherData`
+# without a circular dependency (weather.py does not import from ai/).
+def __getattr__(name: str):
+    if name == "WeatherData":
+        from app.services.weather import WeatherData
+        return WeatherData
+    raise AttributeError(name)

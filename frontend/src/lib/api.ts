@@ -1,6 +1,12 @@
 import axios, { type AxiosError } from "axios";
 import { signOut } from "next-auth/react";
 import type { ClothingItem, ClothingItemListResponse, ClothingItemStatus } from "@/types/clothing";
+import type {
+  WeatherData,
+  RecommendationResponse,
+  OutfitListResponse,
+  Occasion,
+} from "@/types/recommendations";
 
 export class ApiError extends Error {
   constructor(
@@ -68,8 +74,25 @@ export async function deleteClothingItem(id: string): Promise<void> {
   await apiClient.delete(`/clothing/${id}`);
 }
 
-export async function getRecommendations(): Promise<unknown> {
-  const { data } = await apiClient.get("/recommendations");
+export async function getWeather(): Promise<WeatherData> {
+  const { data } = await apiClient.get<WeatherData>("/recommendations/weather");
+  return data;
+}
+
+export async function getRecommendations(occasion: Occasion): Promise<RecommendationResponse> {
+  const { data } = await apiClient.get<RecommendationResponse>("/recommendations", {
+    params: { occasion },
+  });
+  return data;
+}
+
+export async function getRecommendationHistory(
+  page = 1,
+  limit = 10,
+): Promise<OutfitListResponse> {
+  const { data } = await apiClient.get<OutfitListResponse>("/recommendations/history", {
+    params: { page, limit },
+  });
   return data;
 }
 

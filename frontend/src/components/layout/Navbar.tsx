@@ -1,11 +1,19 @@
 "use client";
 
-import { signOut, useSession } from "next-auth/react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
 import { Shirt } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const NAV_LINKS = [
+  { href: "/wardrobe", label: "Wardrobe" },
+  { href: "/recommendations", label: "Recommendations" },
+];
 
 export function Navbar() {
   const { data: session } = useSession();
+  const pathname = usePathname();
 
   return (
     <nav className="bg-gray-900 text-white">
@@ -20,19 +28,27 @@ export function Navbar() {
             Hangar
           </Link>
 
-          <div className="flex items-center gap-4 text-sm text-gray-400">
-            <Link
-              href="/wardrobe"
-              className="transition-colors hover:text-white"
-            >
-              Wardrobe
-            </Link>
-            <Link
-              href="/recommendations"
-              className="transition-colors hover:text-white"
-            >
-              Recommendations
-            </Link>
+          <div className="flex items-center gap-1">
+            {NAV_LINKS.map(({ href, label }) => {
+              const active = pathname === href || pathname.startsWith(href + "/");
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-sm transition-colors",
+                    active
+                      ? "font-medium text-white"
+                      : "text-gray-400 hover:text-white",
+                  )}
+                >
+                  {label}
+                  {active && (
+                    <span className="mt-0.5 block h-0.5 rounded-full bg-white" />
+                  )}
+                </Link>
+              );
+            })}
           </div>
         </div>
 

@@ -1,10 +1,12 @@
 """arq background worker — runs AI clothing analysis jobs outside the HTTP request cycle."""
 
+import asyncio
 import dataclasses
 import json
 import logging
 import uuid
 
+import httpx
 from arq.connections import RedisSettings
 from sqlalchemy import select
 
@@ -62,7 +64,22 @@ async def analyze_clothing_image(ctx: dict, item_id: str) -> None:
             await db.commit()
 
             provider = get_ai_provider()
-            analysis = await provider.analyze_clothing_image(item.image_path)
+            _retry_delays = [10, 30, 60]
+            analysis = None
+            for attempt, delay in enumerate([0] + _retry_delays, start=1):
+                if delay:
+                    logger.warning(
+                        "Item %s: rate-limited by AI provider, retrying in %ds (attempt %d/%d)",
+                        item_id, delay, attempt, len(_retry_delays) + 1,
+                    )
+                    await asyncio.sleep(delay)
+                try:
+                    analysis = await provider.analyze_clothing_image(item.image_path)
+                    break
+                except httpx.HTTPStatusError as exc:
+                    if exc.response.status_code == 429 and attempt <= len(_retry_delays):
+                        continue
+                    raise
 
             item.name = analysis.name
             item.category = analysis.category
@@ -99,7 +116,7 @@ class WorkerSettings:
     functions = [analyze_clothing_image]
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     max_jobs = 10
-    job_timeout = 120
+    job_timeout = 300  # up to 100s of retry sleep + AI call time
     keep_result = 3600
     on_startup = on_startup
     on_shutdown = on_shutdown
