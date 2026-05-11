@@ -6,6 +6,7 @@ from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.database import Base
+import app.models  # noqa: F401 — registers all ORM models with Base.metadata for autogenerate
 
 # Alembic Config object — gives access to values in alembic.ini
 config = context.config
