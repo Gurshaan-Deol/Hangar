@@ -17,6 +17,7 @@ from app.models.user import User
 from app.schemas.clothing_item import (
     ClothingItemListResponse,
     ClothingItemResponse,
+    ClothingItemStatusResponse,
     ClothingItemUpdate,
 )
 
@@ -130,6 +131,16 @@ async def upload_clothing(
         logger.error("Failed to enqueue AI analysis job for item %s: %s", item.id, exc)
 
     return item
+
+
+@router.get("/{item_id}/status", response_model=ClothingItemStatusResponse)
+async def get_clothing_item_status(
+    item_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ClothingItem:
+    """Lightweight polling endpoint — returns only id, status, and name."""
+    return await _get_owned_item(item_id, current_user, db)
 
 
 @router.get("/{item_id}", response_model=ClothingItemResponse)

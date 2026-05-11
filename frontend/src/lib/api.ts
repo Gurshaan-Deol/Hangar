@@ -1,6 +1,6 @@
 import axios, { type AxiosError } from "axios";
 import { signOut } from "next-auth/react";
-import type { ClothingItem, ClothingItemListResponse } from "@/types/clothing";
+import type { ClothingItem, ClothingItemListResponse, ClothingItemStatus } from "@/types/clothing";
 
 export class ApiError extends Error {
   constructor(
@@ -48,13 +48,19 @@ export async function getWardrobe(
 
 export async function uploadClothingItem(file: File): Promise<ClothingItem> {
   const formData = new FormData();
-  formData.append("file", file);
+  // Backend FastAPI endpoint expects the field named "image"
+  formData.append("image", file);
   const { data } = await apiClient.post<ClothingItem>("/clothing/upload", formData);
   return data;
 }
 
 export async function getClothingItem(id: string): Promise<ClothingItem> {
   const { data } = await apiClient.get<ClothingItem>(`/clothing/${id}`);
+  return data;
+}
+
+export async function getClothingItemStatus(id: string): Promise<ClothingItemStatus> {
+  const { data } = await apiClient.get<ClothingItemStatus>(`/clothing/${id}/status`);
   return data;
 }
 

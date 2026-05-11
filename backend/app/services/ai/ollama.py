@@ -1,18 +1,14 @@
-"""Ollama local AI provider — uses the OpenAI-compatible Ollama REST API."""
+"""Ollama local AI provider — uses Ollama's OpenAI-compatible REST API.
 
-from app.services.ai.base import BaseAIProvider, ClothingAnalysis, OutfitRecommendation, WeatherData
+Requires a vision-capable model like gemma3, llava, or moondream.
+"""
 
-# TODO: implement OllamaProvider(BaseAIProvider)
-#       - Ollama exposes an OpenAI-compatible API at http://host.docker.internal:11434/v1
-#       - Reuse OpenAIProvider logic with api_key="not-needed" and the Ollama base_url
-#       - No special auth required
+from app.services.ai.openai import OpenAIProvider
 
 
-class OllamaProvider(BaseAIProvider):
-    async def analyze_clothing_image(self, image_base64: str) -> ClothingAnalysis:
-        raise NotImplementedError
+class OllamaProvider(OpenAIProvider):
+    """Local Ollama provider. Identical to OpenAIProvider except no Authorization header
+    is sent — AI_API_KEY should be set to "not-needed" in the environment.
 
-    async def generate_outfit_recommendation(
-        self, items: list, weather: WeatherData
-    ) -> OutfitRecommendation:
-        raise NotImplementedError
+    Requires a vision-capable model like gemma3, llava, or moondream.
+    """

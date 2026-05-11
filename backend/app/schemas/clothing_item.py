@@ -40,6 +40,14 @@ class ClothingItemResponse(ClothingItemBase):
     model_config = {"from_attributes": True}
 
 
+class ClothingItemStatusResponse(BaseModel):
+    id: UUID
+    status: str
+    name: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
 class ClothingItemListResponse(BaseModel):
     items: list[ClothingItemResponse]
     total: int
