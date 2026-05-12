@@ -37,6 +37,18 @@ def _parse_json_response(raw: str) -> dict:
         raise ValueError(f"AI response was not valid JSON: {raw[:200]}")
 
 
+def _split_tags(raw_tags: list[str]) -> list[str]:
+    """Ensure every tag is a single token. If the model returns 'urban, streetwear'
+    as one string, split it so each entry is its own tag."""
+    result = []
+    for tag in raw_tags:
+        for part in tag.split(","):
+            cleaned = part.strip()
+            if cleaned:
+                result.append(cleaned)
+    return result
+
+
 _ANALYZE_PROMPT = """\
 Analyze this clothing item and return a JSON object with exactly these fields:
 {
@@ -48,9 +60,10 @@ hat, bag, accessory, other",
   "color": "primary color description",
   "style": "one of: casual, smart-casual, formal, workwear, athletic, loungewear",
   "season": ["array of applicable seasons from: spring, summer, fall, winter"],
-  "tags": ["array of 2-5 descriptive tags like office, weekend, beach, date-night"],
+  "tags": ["beach", "vacation", "relaxed", "street-style"],
   "confidence": 0.95
 }
+Each tag must be a single word or short hyphenated phrase — no commas inside a tag.
 Return only the JSON object, nothing else."""
 
 
@@ -122,7 +135,7 @@ class OpenAIProvider(BaseAIProvider):
             color=data.get("color", "unknown"),
             style=data.get("style", "other"),
             season=data.get("season", []),
-            tags=data.get("tags", []),
+            tags=_split_tags(data.get("tags", [])),
             confidence=data.get("confidence", 0.0),
         )
 
