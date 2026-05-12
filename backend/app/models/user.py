@@ -1,13 +1,20 @@
 """SQLAlchemy ORM model for application users (auto-provisioned via OAuth)."""
 
+from __future__ import annotations
+
 import uuid
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.clothing_item import ClothingItem
+    from app.models.outfit import Outfit
 
 
 def _utcnow() -> datetime:
@@ -34,9 +41,9 @@ class User(Base):
         UniqueConstraint("provider", "provider_id", name="uq_users_provider_provider_id"),
     )
 
-    clothing_items: Mapped[list["ClothingItem"]] = relationship(  # type: ignore[name-defined]
+    clothing_items: Mapped[list[ClothingItem]] = relationship(
         "ClothingItem", back_populates="user", cascade="all, delete-orphan"
     )
-    outfits: Mapped[list["Outfit"]] = relationship(  # type: ignore[name-defined]
+    outfits: Mapped[list[Outfit]] = relationship(
         "Outfit", back_populates="user", cascade="all, delete-orphan"
     )

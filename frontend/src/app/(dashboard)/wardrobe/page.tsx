@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, X } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { UploadZone } from "@/components/wardrobe/UploadZone";
@@ -24,13 +25,7 @@ const FILTERS: { label: string; value: string }[] = [
 
 function SkeletonCard() {
   return (
-    <div className="overflow-hidden rounded-xl bg-gray-800 ring-1 ring-gray-700">
-      <div className="aspect-[3/4] animate-pulse bg-gray-700" />
-      <div className="p-3">
-        <div className="h-4 animate-pulse rounded bg-gray-700" />
-        <div className="mt-2 h-3 w-2/3 animate-pulse rounded bg-gray-700" />
-      </div>
-    </div>
+    <div className="aspect-[3/4] animate-pulse rounded-2xl bg-[var(--color-surface-raised)]" />
   );
 }
 
@@ -38,6 +33,7 @@ export default function WardrobePage() {
   const queryClient = useQueryClient();
   const [activeFilter, setActiveFilter] = useState("all");
   const [optimisticItems, setOptimisticItems] = useState<ClothingItem[]>([]);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["wardrobe"],
@@ -59,39 +55,52 @@ export default function WardrobePage() {
   const handleUploadComplete = (item: ClothingItem) => {
     setOptimisticItems((prev) => [item, ...prev]);
     queryClient.invalidateQueries({ queryKey: ["wardrobe"] });
+    setUploadModalOpen(false);
   };
 
   const handleItemUpdated = (updated: ClothingItem) => {
-    setOptimisticItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+    setOptimisticItems((prev) =>
+      prev.map((i) => (i.id === updated.id ? updated : i)),
+    );
     queryClient.invalidateQueries({ queryKey: ["wardrobe"] });
   };
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gray-950">
+      <div className="min-h-screen bg-[#0a0a0f]">
         <Navbar />
-        <main className="mx-auto max-w-7xl px-4 py-8">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-white">My Wardrobe</h1>
-            <p className="mt-1 text-sm text-gray-400">
-              {isLoading ? "Loading..." : `${allItems.length} item${allItems.length !== 1 ? "s" : ""} in your wardrobe`}
-            </p>
+
+        <main className="mx-auto max-w-7xl px-4 py-8 animate-fade-in">
+          {/* Page header */}
+          <div className="mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-white">My Wardrobe</h1>
+              {!isLoading && (
+                <span className="rounded-full bg-indigo-500/20 px-3 py-0.5 text-sm text-indigo-300">
+                  {allItems.length} {allItems.length === 1 ? "item" : "items"}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => setUploadModalOpen(true)}
+              className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
+            >
+              <Plus className="h-4 w-4" />
+              Upload
+            </button>
           </div>
 
-          <div className="mb-6">
-            <UploadZone onUploadComplete={handleUploadComplete} />
-          </div>
-
-          <div className="mb-6 flex flex-wrap gap-2">
+          {/* Filter bar — horizontally scrollable, no visible scrollbar */}
+          <div className="mb-6 flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden">
             {FILTERS.map((f) => (
               <button
                 key={f.value}
                 onClick={() => setActiveFilter(f.value)}
                 className={cn(
-                  "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+                  "shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200",
                   activeFilter === f.value
-                    ? "bg-white text-gray-900"
-                    : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white",
+                    ? "bg-indigo-600 text-white"
+                    : "border border-[var(--color-border)] bg-[var(--color-surface-raised)] text-gray-400 hover:text-white",
                 )}
               >
                 {f.label}
@@ -106,7 +115,7 @@ export default function WardrobePage() {
               onRetry={refetch}
             />
           ) : isLoading ? (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {Array.from({ length: 8 }).map((_, i) => (
                 <SkeletonCard key={i} />
               ))}
@@ -119,6 +128,30 @@ export default function WardrobePage() {
             />
           )}
         </main>
+
+        {/* Upload modal — slide-up on mobile, centered on desktop */}
+        {uploadModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              onClick={() => setUploadModalOpen(false)}
+            />
+            {/* Sheet / modal */}
+            <div className="relative z-10 w-full max-w-lg rounded-t-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl sm:rounded-3xl">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-white">Add to Wardrobe</h2>
+                <button
+                  onClick={() => setUploadModalOpen(false)}
+                  className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <UploadZone onUploadComplete={handleUploadComplete} />
+            </div>
+          </div>
+        )}
       </div>
     </ProtectedRoute>
   );

@@ -15,7 +15,7 @@ export function LoadingSpinner({ size = "md", fullPage = false }: LoadingSpinner
   const spinner = (
     <div
       className={cn(
-        "animate-spin rounded-full border-gray-700 border-t-white",
+        "animate-spin rounded-full border-indigo-900 border-t-indigo-400",
         sizeClasses[size],
       )}
     />
@@ -23,8 +23,9 @@ export function LoadingSpinner({ size = "md", fullPage = false }: LoadingSpinner
 
   if (fullPage) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-950">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#0a0a0f]">
         {spinner}
+        <p className="text-sm text-gray-400">Loading...</p>
       </div>
     );
   }

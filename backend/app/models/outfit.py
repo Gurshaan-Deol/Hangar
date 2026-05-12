@@ -1,13 +1,20 @@
 """SQLAlchemy ORM model for a saved outfit (collection of clothing items)."""
 
+from __future__ import annotations
+
 import uuid
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.clothing_item import ClothingItem
+    from app.models.user import User
 
 
 def _utcnow() -> datetime:
@@ -46,7 +53,7 @@ class Outfit(Base):
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
 
-    user: Mapped["User"] = relationship("User", back_populates="outfits")  # type: ignore[name-defined]
-    items: Mapped[list["ClothingItem"]] = relationship(  # type: ignore[name-defined]
+    user: Mapped[User] = relationship("User", back_populates="outfits")
+    items: Mapped[list[ClothingItem]] = relationship(
         "ClothingItem", secondary=outfit_items
     )

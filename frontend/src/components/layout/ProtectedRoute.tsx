@@ -3,6 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { status } = useSession();
@@ -15,11 +16,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }, [status, router]);
 
   if (status === "loading" || status === "unauthenticated") {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-950">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-700 border-t-white" />
-      </div>
-    );
+    return <LoadingSpinner fullPage />;
   }
 
   return <>{children}</>;

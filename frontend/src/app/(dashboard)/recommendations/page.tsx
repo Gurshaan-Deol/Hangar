@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Wand2 } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { WeatherWidget } from "@/components/recommendations/WeatherWidget";
@@ -14,6 +14,12 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { cn } from "@/lib/utils";
 import { getWeather, getRecommendations } from "@/lib/api";
 import type { Occasion, Outfit } from "@/types/recommendations";
+
+const DATE_LABEL = new Date().toLocaleDateString("en-US", {
+  weekday: "long",
+  month: "long",
+  day: "numeric",
+});
 
 export default function RecommendationsPage() {
   const [occasion, setOccasion] = useState<Occasion>("casual");
@@ -47,39 +53,36 @@ export default function RecommendationsPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gray-950">
+      <div className="min-h-screen bg-[#0a0a0f]">
         <Navbar />
-        <main className="mx-auto max-w-3xl px-4 py-8">
+        <main className="mx-auto max-w-3xl px-4 py-8 animate-fade-in">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-white">Today&apos;s Recommendation</h1>
-            <p className="mt-1 text-sm text-gray-400">Powered by AI + real-time weather</p>
+            <h1 className="text-2xl font-bold text-white">Today&apos;s Look</h1>
+            <p className="mt-1 text-sm text-gray-400">{DATE_LABEL}</p>
           </div>
 
-          {/* Top section: weather + occasion */}
-          <div className="mb-8 grid gap-6 sm:grid-cols-2">
-            {/* Weather */}
-            <div>
-              {weatherLoading ? (
-                <div className="flex h-44 items-center justify-center rounded-2xl bg-blue-900/40">
-                  <LoadingSpinner size="sm" />
-                </div>
-              ) : weatherError ? (
-                <ErrorMessage
-                  title="Couldn't load weather"
-                  message="Check WEATHER_LAT and WEATHER_LON in your .env."
-                  onRetry={() => refetchWeather()}
-                />
-              ) : weather ? (
-                <WeatherWidget weather={weather} />
-              ) : null}
-            </div>
+          {/* Weather widget */}
+          <div className="mb-6">
+            {weatherLoading ? (
+              <div className="flex h-44 items-center justify-center rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-900/50 to-indigo-900/50">
+                <LoadingSpinner size="sm" />
+              </div>
+            ) : weatherError ? (
+              <ErrorMessage
+                title="Couldn't load weather"
+                message="Check WEATHER_LAT and WEATHER_LON in your .env."
+                onRetry={() => refetchWeather()}
+              />
+            ) : weather ? (
+              <WeatherWidget weather={weather} />
+            ) : null}
+          </div>
 
-            {/* Occasion */}
-            <div className="flex flex-col justify-center gap-3">
-              <p className="text-sm font-medium text-gray-400">Choose occasion</p>
-              <OccasionSelector selected={occasion} onChange={setOccasion} />
-            </div>
+          {/* Occasion selector */}
+          <div className="mb-8 space-y-3">
+            <p className="text-sm text-gray-400">What&apos;s the occasion?</p>
+            <OccasionSelector selected={occasion} onChange={setOccasion} />
           </div>
 
           {/* Generate button */}
@@ -87,34 +90,34 @@ export default function RecommendationsPage() {
             onClick={() => generate()}
             disabled={isPending || weatherLoading}
             className={cn(
-              "mb-8 flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-sm font-semibold transition-colors",
+              "mb-8 flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-sm font-semibold transition-all duration-200",
               isPending || weatherLoading
-                ? "cursor-not-allowed bg-gray-700 text-gray-500"
-                : "bg-white text-gray-900 hover:bg-gray-100",
+                ? "cursor-not-allowed bg-gray-800 text-gray-500"
+                : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-500 hover:to-purple-500 active:scale-[0.98]",
             )}
           >
             {isPending ? (
               <>
                 <LoadingSpinner size="sm" />
-                Generating…
+                AI is styling you...
               </>
             ) : (
               <>
-                <Wand2 className="h-4 w-4" />
+                <Sparkles className="h-4 w-4" />
                 Generate Outfit
               </>
             )}
           </button>
 
-          {/* Not enough items error */}
+          {/* Not enough items */}
           {notEnoughItems && (
-            <div className="mb-6 rounded-xl bg-gray-800 p-5 text-center ring-1 ring-gray-700">
+            <div className="mb-6 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-6 text-center">
               <p className="text-sm font-medium text-gray-300">
                 Add at least 3 items to your wardrobe first
               </p>
               <Link
                 href="/wardrobe"
-                className="mt-3 inline-block rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-100"
+                className="mt-3 inline-block rounded-xl border border-indigo-500/40 px-4 py-2 text-sm font-medium text-indigo-400 transition-colors hover:bg-indigo-500/10"
               >
                 Go to Wardrobe
               </Link>
