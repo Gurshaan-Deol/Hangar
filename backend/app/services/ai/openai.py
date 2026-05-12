@@ -40,9 +40,13 @@ _ANALYZE_PROMPT = """\
 Analyze this clothing item and return a JSON object with exactly these fields:
 {
   "name": "descriptive name of the item",
-  "category": "one of: shirt, pants, shorts, dress, skirt, jacket, coat, sweater, hoodie, shoes, boots, sneakers, sandals, bag, accessory, other",
+  "category": "shirt, t-shirt, top, pants, jeans, shorts, dress, skirt, 
+             blazer, suit, jacket, coat, sweater, cardigan, hoodie, 
+             activewear, shoes, boots, heels, sneakers, sandals, 
+             hat, bag, accessory, other",
   "color": "primary color description",
-  "style": "one of: casual, formal, business, athletic, outdoor, streetwear, other",
+  "formality": "one of: casual, smart-casual, formal, workwear, athletic, loungewear",
+  "aesthetic": "one of: classic, streetwear, vintage, bohemian, minimalist, preppy, outdoor, other",
   "season": ["array of applicable seasons from: spring, summer, fall, winter"],
   "tags": ["array of 2-5 descriptive tags like office, weekend, beach, date-night"],
   "confidence": 0.95

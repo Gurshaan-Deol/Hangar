@@ -1,27 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, X } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { UploadZone } from "@/components/wardrobe/UploadZone";
 import { ClothingGrid } from "@/components/wardrobe/ClothingGrid";
+import { ClothingDetailModal } from "@/components/wardrobe/ClothingDetailModal";
+import { WardrobeFilters, EMPTY_FILTERS } from "@/components/wardrobe/WardrobeFilters";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
-import { cn } from "@/lib/utils";
 import { getWardrobe } from "@/lib/api";
-import type { ClothingItem } from "@/types/clothing";
-
-const FILTERS: { label: string; value: string }[] = [
-  { label: "All", value: "all" },
-  { label: "Shirts", value: "shirt" },
-  { label: "Pants", value: "pants" },
-  { label: "Jackets", value: "jacket" },
-  { label: "Shoes", value: "shoes" },
-  { label: "Dresses", value: "dress" },
-  { label: "Sweaters", value: "sweater" },
-  { label: "Other", value: "other" },
-];
+import type { ClothingItem, ClothingItemListResponse } from "@/types/clothing";
+import type { FilterState } from "@/components/wardrobe/WardrobeFilters";
 
 function SkeletonCard() {
   return (
@@ -31,9 +22,10 @@ function SkeletonCard() {
 
 export default function WardrobePage() {
   const queryClient = useQueryClient();
-  const [activeFilter, setActiveFilter] = useState("all");
+  const [activeFilters, setActiveFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [optimisticItems, setOptimisticItems] = useState<ClothingItem[]>([]);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<ClothingItem | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["wardrobe"],
@@ -47,10 +39,27 @@ export default function WardrobePage() {
     return [...extras, ...fetched];
   }, [data?.items, optimisticItems]);
 
+  // Derive available colour and aesthetic (tag) options from the loaded wardrobe
+  const colorOptions = useMemo(
+    () => [...new Set(allItems.map((i) => i.color).filter(Boolean) as string[])].sort(),
+    [allItems],
+  );
+  const aestheticOptions = useMemo(
+    () => [...new Set(allItems.flatMap((i) => i.tags ?? []))].sort(),
+    [allItems],
+  );
+
   const filteredItems = useMemo(() => {
-    if (activeFilter === "all") return allItems;
-    return allItems.filter((i) => i.category === activeFilter);
-  }, [allItems, activeFilter]);
+    const { categories, formality, seasons, colors, aesthetics } = activeFilters;
+    return allItems.filter((item) => {
+      if (categories.length > 0 && !categories.includes(item.category ?? "")) return false;
+      if (formality.length > 0 && !formality.includes(item.style ?? "")) return false;
+      if (seasons.length > 0 && !seasons.some((s) => item.season?.includes(s))) return false;
+      if (colors.length > 0 && !colors.includes(item.color ?? "")) return false;
+      if (aesthetics.length > 0 && !aesthetics.some((a) => item.tags?.includes(a))) return false;
+      return true;
+    });
+  }, [allItems, activeFilters]);
 
   const handleUploadComplete = (item: ClothingItem) => {
     setOptimisticItems((prev) => [item, ...prev]);
@@ -64,6 +73,21 @@ export default function WardrobePage() {
     );
     queryClient.invalidateQueries({ queryKey: ["wardrobe"] });
   };
+
+  const handleDelete = useCallback(
+    (id: string) => {
+      setOptimisticItems((prev) => prev.filter((i) => i.id !== id));
+      queryClient.setQueryData<ClothingItemListResponse>(["wardrobe"], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          items: old.items.filter((i) => i.id !== id),
+          total: Math.max(0, old.total - 1),
+        };
+      });
+    },
+    [queryClient],
+  );
 
   return (
     <ProtectedRoute>
@@ -81,31 +105,21 @@ export default function WardrobePage() {
                 </span>
               )}
             </div>
-            <button
-              onClick={() => setUploadModalOpen(true)}
-              className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
-            >
-              <Plus className="h-4 w-4" />
-              Upload
-            </button>
-          </div>
-
-          {/* Filter bar — horizontally scrollable, no visible scrollbar */}
-          <div className="mb-6 flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden">
-            {FILTERS.map((f) => (
+            <div className="flex items-center gap-3">
+              <WardrobeFilters
+                filters={activeFilters}
+                onChange={setActiveFilters}
+                colorOptions={colorOptions}
+                aestheticOptions={aestheticOptions}
+              />
               <button
-                key={f.value}
-                onClick={() => setActiveFilter(f.value)}
-                className={cn(
-                  "shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200",
-                  activeFilter === f.value
-                    ? "bg-indigo-600 text-white"
-                    : "border border-[var(--color-border)] bg-[var(--color-surface-raised)] text-gray-400 hover:text-white",
-                )}
+                onClick={() => setUploadModalOpen(true)}
+                className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
               >
-                {f.label}
+                <Plus className="h-4 w-4" />
+                Upload
               </button>
-            ))}
+            </div>
           </div>
 
           {error ? (
@@ -123,21 +137,20 @@ export default function WardrobePage() {
           ) : (
             <ClothingGrid
               items={filteredItems}
-              onItemClick={() => {}}
+              onItemClick={setSelectedItem}
               onItemUpdated={handleItemUpdated}
+              onItemDeleted={handleDelete}
             />
           )}
         </main>
 
-        {/* Upload modal — slide-up on mobile, centered on desktop */}
+        {/* Upload modal */}
         {uploadModalOpen && (
           <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-            {/* Backdrop */}
             <div
               className="absolute inset-0 bg-black/70 backdrop-blur-sm"
               onClick={() => setUploadModalOpen(false)}
             />
-            {/* Sheet / modal */}
             <div className="relative z-10 w-full max-w-lg rounded-t-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl sm:rounded-3xl">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-white">Add to Wardrobe</h2>
@@ -152,6 +165,12 @@ export default function WardrobePage() {
             </div>
           </div>
         )}
+
+        <ClothingDetailModal
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+          onDelete={handleDelete}
+        />
       </div>
     </ProtectedRoute>
   );

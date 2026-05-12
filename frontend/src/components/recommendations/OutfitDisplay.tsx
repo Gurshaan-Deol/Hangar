@@ -69,6 +69,7 @@ export function OutfitDisplay({ outfit, isLoading }: OutfitDisplayProps) {
               item={item as ClothingItem}
               onClick={() => {}}
               onAnalysisComplete={() => {}}
+              onDelete={() => {}}
             />
           </div>
         ))}

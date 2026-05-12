@@ -7,12 +7,13 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import func, select
+from sqlalchemy import delete as sql_delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.dependencies import get_arq_pool, get_current_user, get_db
 from app.models.clothing_item import ClothingItem
+from app.models.outfit import outfit_items as outfit_items_table
 from app.models.user import User
 from app.schemas.clothing_item import (
     ClothingItemListResponse,
@@ -182,6 +183,15 @@ async def delete_clothing_item(
     item = await _get_owned_item(item_id, current_user, db)
 
     image_path = item.image_path
+
+    # Remove join-table rows first — outfit_items has a FK to clothing_items
+    # with no CASCADE, so deleting the item directly would violate the constraint.
+    await db.execute(
+        sql_delete(outfit_items_table).where(
+            outfit_items_table.c.clothing_item_id == item.id
+        )
+    )
+
     await db.delete(item)
     await db.commit()
 

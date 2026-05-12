@@ -1,7 +1,13 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Image from "next/image";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { deleteClothingItem } from "@/lib/api";
 import type { ClothingItem } from "@/types/clothing";
 import { AnalysisStatus } from "./AnalysisStatus";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 const STATUS_BADGE: Record<
   ClothingItem["status"],
@@ -17,11 +23,45 @@ interface ClothingCardProps {
   item: ClothingItem;
   onClick: (item: ClothingItem) => void;
   onAnalysisComplete: (item: ClothingItem) => void;
+  onDelete: (id: string) => void;
 }
 
-export function ClothingCard({ item, onClick, onAnalysisComplete }: ClothingCardProps) {
+export function ClothingCard({ item, onClick, onAnalysisComplete, onDelete }: ClothingCardProps) {
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const badge = STATUS_BADGE[item.status];
   const isProcessing = item.status === "pending" || item.status === "analyzing";
+
+  // Dismiss confirmation when clicking anywhere outside
+  useEffect(() => {
+    if (!showConfirm) return;
+    const dismiss = () => setShowConfirm(false);
+    document.addEventListener("click", dismiss);
+    return () => document.removeEventListener("click", dismiss);
+  }, [showConfirm]);
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowConfirm(true);
+  };
+
+  const handleDeleteConfirm = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowConfirm(false);
+    setIsDeleting(true);
+    try {
+      await deleteClothingItem(item.id);
+      onDelete(item.id);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowConfirm(false);
+  };
 
   return (
     <div
@@ -32,7 +72,7 @@ export function ClothingCard({ item, onClick, onAnalysisComplete }: ClothingCard
       className="group relative cursor-pointer overflow-hidden rounded-2xl bg-[var(--color-surface-raised)] transition-all duration-200 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/60"
     >
       <div className="relative aspect-[3/4]">
-        {/* Image — next/image for automatic optimisation and lazy loading */}
+        {/* Image */}
         {item.image_url ? (
           <Image
             src={item.image_url}
@@ -53,7 +93,7 @@ export function ClothingCard({ item, onClick, onAnalysisComplete }: ClothingCard
           </div>
         )}
 
-        {/* Bottom gradient with overlaid item details */}
+        {/* Bottom gradient with item details */}
         <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/80 to-transparent" />
 
         <div className="absolute bottom-0 left-0 right-0 p-3">
@@ -86,6 +126,50 @@ export function ClothingCard({ item, onClick, onAnalysisComplete }: ClothingCard
             {badge.label}
           </span>
         )}
+
+        {/* Delete button — top-left, visible on hover */}
+        <div className="absolute left-3 top-3 z-10">
+          <button
+            onClick={handleDeleteClick}
+            aria-label="Delete item"
+            className={cn(
+              "rounded-full bg-black/60 p-1.5 backdrop-blur-sm transition-all duration-200 hover:bg-red-600",
+              showConfirm || isDeleting
+                ? "opacity-100"
+                : "opacity-0 group-hover:opacity-100",
+            )}
+          >
+            {isDeleting ? (
+              <LoadingSpinner size="sm" />
+            ) : (
+              <X className="h-3.5 w-3.5 text-white" />
+            )}
+          </button>
+
+          {/* Inline confirmation tooltip */}
+          {showConfirm && (
+            <div
+              className="absolute left-0 top-full z-20 mt-1.5 min-w-max rounded-xl border border-gray-700 bg-gray-900 p-2 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="mb-1.5 text-xs text-gray-300">Delete?</p>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={handleDeleteConfirm}
+                  className="rounded-lg bg-red-600 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-red-500"
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={handleDeleteCancel}
+                  className="rounded-lg bg-gray-700 px-2 py-1 text-xs text-gray-300 transition-colors hover:bg-gray-600"
+                >
+                  No
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

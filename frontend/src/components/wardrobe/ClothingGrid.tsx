@@ -6,9 +6,10 @@ interface ClothingGridProps {
   items: ClothingItem[];
   onItemClick: (item: ClothingItem) => void;
   onItemUpdated: (item: ClothingItem) => void;
+  onItemDeleted: (id: string) => void;
 }
 
-export function ClothingGrid({ items, onItemClick, onItemUpdated }: ClothingGridProps) {
+export function ClothingGrid({ items, onItemClick, onItemUpdated, onItemDeleted }: ClothingGridProps) {
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -27,6 +28,7 @@ export function ClothingGrid({ items, onItemClick, onItemUpdated }: ClothingGrid
           item={item}
           onClick={onItemClick}
           onAnalysisComplete={onItemUpdated}
+          onDelete={onItemDeleted}
         />
       ))}
     </div>
