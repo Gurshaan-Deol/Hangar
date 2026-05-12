@@ -5,6 +5,7 @@ import dataclasses
 import json
 import logging
 import uuid
+from pathlib import Path
 
 import httpx
 from arq.connections import RedisSettings
@@ -14,6 +15,7 @@ from app.config import get_settings
 from app.database import AsyncSessionLocal
 from app.models.clothing_item import ClothingItem
 from app.services.ai.base import get_ai_provider
+from app.services.background_removal import remove_background
 
 logging.basicConfig(level=logging.INFO, force=True)
 logger = logging.getLogger(__name__)
@@ -63,6 +65,12 @@ async def analyze_clothing_image(ctx: dict, item_id: str) -> None:
             item.status = "analyzing"
             await db.commit()
 
+            cleaned_path = await asyncio.to_thread(remove_background, item.image_path)
+            if cleaned_path != item.image_path:
+                item.image_path = cleaned_path
+                item.image_url = f"/uploads/{item.user_id}/{Path(cleaned_path).name}"
+                await db.commit()
+
             provider = get_ai_provider()
             _retry_delays = [10, 30, 60]
             analysis = None
@@ -74,7 +82,7 @@ async def analyze_clothing_image(ctx: dict, item_id: str) -> None:
                     )
                     await asyncio.sleep(delay)
                 try:
-                    analysis = await provider.analyze_clothing_image(item.image_path)
+                    analysis = await provider.analyze_clothing_image(cleaned_path)
                     break
                 except httpx.HTTPStatusError as exc:
                     if exc.response.status_code == 429 and attempt <= len(_retry_delays):
