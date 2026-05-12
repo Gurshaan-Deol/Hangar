@@ -173,6 +173,20 @@ async def update_clothing_item(
     return item
 
 
+@router.post("/{item_id}/dismiss-duplicate", response_model=ClothingItemResponse)
+async def dismiss_duplicate(
+    item_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ClothingItem:
+    """Mark a duplicate warning as dismissed (user wants to keep both items)."""
+    item = await _get_owned_item(item_id, current_user, db)
+    item.dismissed_duplicate = True
+    await db.commit()
+    await db.refresh(item)
+    return item
+
+
 @router.delete("/{item_id}")
 async def delete_clothing_item(
     item_id: uuid.UUID,

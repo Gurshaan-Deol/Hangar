@@ -170,6 +170,10 @@ export default function WardrobePage() {
           item={selectedItem}
           onClose={() => setSelectedItem(null)}
           onDelete={handleDelete}
+          onUpdate={(updated) => {
+            setSelectedItem(updated);
+            handleItemUpdated(updated);
+          }}
         />
       </div>
     </ProtectedRoute>

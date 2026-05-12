@@ -10,6 +10,10 @@ export interface ClothingItem {
   image_url: string | null;
   status: "pending" | "analyzing" | "ready" | "failed";
   notes: string | null;
+  duplicate_of: string | null;
+  duplicate_confidence: number | null;
+  duplicate_reason: string | null;
+  dismissed_duplicate: boolean;
   created_at: string;
 }
 

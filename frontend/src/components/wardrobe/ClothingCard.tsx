@@ -127,6 +127,13 @@ export function ClothingCard({ item, onClick, onAnalysisComplete, onDelete }: Cl
           </span>
         )}
 
+        {/* Duplicate warning badge */}
+        {item.duplicate_of && !item.dismissed_duplicate && (
+          <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-amber-500/90 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+            ⚠ Possible duplicate
+          </span>
+        )}
+
         {/* Delete button — top-left, visible on hover */}
         <div className="absolute left-3 top-3 z-10">
           <button

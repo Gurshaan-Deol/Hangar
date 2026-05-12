@@ -38,4 +38,13 @@ export interface OutfitListResponse {
   limit: number;
 }
 
-export type Occasion = "casual" | "work" | "formal" | "outdoor" | "date";
+export type Occasion =
+  | "casual"
+  | "work"
+  | "formal"
+  | "outdoor"
+  | "date"
+  | "party"
+  | "travel"
+  | "gym"
+  | "brunch";

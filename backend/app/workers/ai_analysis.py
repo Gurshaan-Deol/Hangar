@@ -87,8 +87,60 @@ async def analyze_clothing_image(ctx: dict, item_id: str) -> None:
             item.style = analysis.style
             item.season = analysis.season
             item.tags = analysis.tags
-            item.status = "ready"
             item.ai_raw_response = json.dumps(dataclasses.asdict(analysis))
+
+            # Duplicate detection — query other ready items in the same category
+            existing_result = await db.execute(
+                select(ClothingItem).where(
+                    ClothingItem.user_id == item.user_id,
+                    ClothingItem.status == "ready",
+                    ClothingItem.id != item_uuid,
+                    ClothingItem.category == analysis.category,
+                )
+            )
+            existing_items = existing_result.scalars().all()
+
+            if existing_items:
+                candidates = [
+                    {
+                        "id": str(e.id),
+                        "name": e.name,
+                        "category": e.category,
+                        "color": e.color,
+                        "tags": e.tags or [],
+                    }
+                    for e in existing_items[:5]
+                ]
+                new_item_data = {
+                    "name": analysis.name,
+                    "category": analysis.category,
+                    "color": analysis.color,
+                    "tags": analysis.tags or [],
+                }
+                try:
+                    dup = await provider.check_duplicate(new_item_data, candidates)
+                    if dup.get("duplicate_found") and float(dup.get("confidence", 0)) > 0.8:
+                        dup_id_str = dup.get("duplicate_id")
+                        if dup_id_str:
+                            try:
+                                item.duplicate_of = uuid.UUID(str(dup_id_str))
+                                item.duplicate_confidence = float(dup.get("confidence", 0))
+                                item.duplicate_reason = dup.get("reason", "")
+                                logger.info(
+                                    "Duplicate detected for item %s → %s (confidence %.2f)",
+                                    item_id, dup_id_str, item.duplicate_confidence,
+                                )
+                            except ValueError:
+                                logger.warning(
+                                    "AI returned invalid duplicate_id %r for item %s",
+                                    dup_id_str, item_id,
+                                )
+                except Exception:
+                    logger.exception(
+                        "Duplicate check failed for item %s — skipping", item_id
+                    )
+
+            item.status = "ready"
             await db.commit()
 
             logger.info("Analysis complete for item %s: %s", item_id, analysis.name)

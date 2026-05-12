@@ -1,4 +1,4 @@
-import { Briefcase, Heart, Mountain, Smile, Star } from "lucide-react";
+import { Briefcase, Coffee, Dumbbell, Heart, Mountain, Plane, Smile, Star, PartyPopper } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Occasion } from "@/types/recommendations";
 
@@ -12,10 +12,14 @@ const OCCASIONS: {
   { value: "formal", label: "Formal", Icon: Star },
   { value: "outdoor", label: "Outdoor", Icon: Mountain },
   { value: "date", label: "Date", Icon: Heart },
+  { value: "party", label: "Party", Icon: PartyPopper },
+  { value: "travel", label: "Travel", Icon: Plane },
+  { value: "gym", label: "Gym", Icon: Dumbbell },
+  { value: "brunch", label: "Brunch", Icon: Coffee },
 ];
 
 interface OccasionSelectorProps {
-  selected: Occasion;
+  selected: Occasion | null;
   onChange: (occasion: Occasion) => void;
 }
 

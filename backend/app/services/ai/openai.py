@@ -17,6 +17,7 @@ from app.services.ai.base import BaseAIProvider, ClothingAnalysis
 if TYPE_CHECKING:
     from app.services.weather import WeatherData
 
+import logging
 logger = logging.getLogger(__name__)
 
 
@@ -40,13 +41,12 @@ _ANALYZE_PROMPT = """\
 Analyze this clothing item and return a JSON object with exactly these fields:
 {
   "name": "descriptive name of the item",
-  "category": "shirt, t-shirt, top, pants, jeans, shorts, dress, skirt, 
-             blazer, suit, jacket, coat, sweater, cardigan, hoodie, 
-             activewear, shoes, boots, heels, sneakers, sandals, 
-             hat, bag, accessory, other",
+  "category": "shirt, t-shirt, top, pants, jeans, shorts, dress, skirt, \
+blazer, suit, jacket, coat, sweater, cardigan, hoodie, \
+activewear, shoes, boots, heels, sneakers, sandals, \
+hat, bag, accessory, other",
   "color": "primary color description",
-  "formality": "one of: casual, smart-casual, formal, workwear, athletic, loungewear",
-  "aesthetic": "one of: classic, streetwear, vintage, bohemian, minimalist, preppy, outdoor, other",
+  "style": "one of: casual, smart-casual, formal, workwear, athletic, loungewear",
   "season": ["array of applicable seasons from: spring, summer, fall, winter"],
   "tags": ["array of 2-5 descriptive tags like office, weekend, beach, date-night"],
   "confidence": 0.95
@@ -113,25 +113,82 @@ class OpenAIProvider(BaseAIProvider):
         raw = response.json()["choices"][0]["message"]["content"]
         data = _parse_json_response(raw)
 
+        # right before building ClothingAnalysis:
+        logger.debug(f"Raw AI response fields: {list(data.keys())}")
+
         return ClothingAnalysis(
-            name=data["name"],
-            category=data["category"],
-            color=data["color"],
-            style=data["style"],
-            season=data["season"],
-            tags=data["tags"],
-            confidence=float(data["confidence"]),
+            name=data.get("name", "Unknown Item"),
+            category=data.get("category", "other"),
+            color=data.get("color", "unknown"),
+            style=data.get("style", "other"),
+            season=data.get("season", []),
+            tags=data.get("tags", []),
+            confidence=data.get("confidence", 0.0),
         )
+
+    async def check_duplicate(self, new_item: dict, existing_items: list[dict]) -> dict:
+        """Ask the AI whether new_item duplicates any item in existing_items."""
+        prompt = f"""I just added a new clothing item to my wardrobe:
+Name: {new_item.get('name')}
+Category: {new_item.get('category')}
+Color: {new_item.get('color')}
+Tags: {', '.join(new_item.get('tags') or [])}
+
+Do any of these existing wardrobe items look like a duplicate or near-duplicate?
+{json.dumps(existing_items, indent=2)}
+
+Return a JSON object with exactly:
+{{
+  "duplicate_found": true or false,
+  "duplicate_id": "<id of the matching item, or null>",
+  "confidence": 0.0 to 1.0,
+  "reason": "brief one-sentence explanation"
+}}
+Return only the JSON object, nothing else."""
+
+        payload = {
+            "model": self._text_model or self._vision_model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a wardrobe assistant. Identify duplicate or near-duplicate "
+                        "clothing items. Always respond with valid JSON only, no markdown."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "max_tokens": 256,
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{self._base_url}/chat/completions",
+                json=payload,
+                headers=self._headers(),
+            )
+            response.raise_for_status()
+
+        raw = response.json()["choices"][0]["message"]["content"]
+        return _parse_json_response(raw)
 
     async def generate_outfit_recommendation(
         self,
         items: list[dict],
         weather: WeatherData,
         occasion: str = "casual",
+        custom_request: str | None = None,
     ) -> dict:
         """Select 3-5 items from the wardrobe that suit the current weather and occasion."""
+        if custom_request:
+            outfit_goal = f"The user's outfit goal (natural language): {custom_request}"
+            occasion_json = "custom"
+        else:
+            outfit_goal = f"The user wants an outfit for: {occasion}"
+            occasion_json = occasion
+
         user_prompt = f"""
-The user wants an outfit for: {occasion}
+{outfit_goal}
 Current weather: {weather.temperature}°C, feels like {weather.feels_like}°C, {weather.condition}, humidity {weather.humidity}%
 
 Available clothing items:
@@ -146,7 +203,7 @@ Return a JSON object with exactly:
 {{
   "selected_item_ids": ["id1", "id2", "id3"],
   "reasoning": "Brief explanation of why these items work together and suit the weather",
-  "occasion": "{occasion}"
+  "occasion": "{occasion_json}"
 }}
 Return only the JSON object, nothing else.
 """

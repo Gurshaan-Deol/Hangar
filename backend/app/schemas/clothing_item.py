@@ -35,6 +35,10 @@ class ClothingItemResponse(ClothingItemBase):
     user_id: UUID
     image_url: str | None = None
     status: str
+    duplicate_of: UUID | None = None
+    duplicate_confidence: float | None = None
+    duplicate_reason: str | None = None
+    dismissed_duplicate: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}

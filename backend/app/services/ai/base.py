@@ -28,13 +28,30 @@ class BaseAIProvider(ABC):
         ...
 
     @abstractmethod
+    async def check_duplicate(
+        self,
+        new_item: dict,
+        existing_items: list[dict],
+    ) -> dict:
+        """Check whether new_item is a duplicate of any item in existing_items.
+
+        Returns: { "duplicate_found": bool, "duplicate_id": str|None,
+                   "confidence": float, "reason": str }
+        """
+        ...
+
+    @abstractmethod
     async def generate_outfit_recommendation(
         self,
         items: list[dict],
         weather: "WeatherData",  # noqa: F821 — resolved at runtime
         occasion: str = "casual",
+        custom_request: str | None = None,
     ) -> dict:
-        """Suggest an outfit from the wardrobe given current weather and occasion."""
+        """Suggest an outfit from the wardrobe given current weather and occasion.
+
+        When custom_request is provided it takes precedence over occasion.
+        """
         ...
 
     @abstractmethod

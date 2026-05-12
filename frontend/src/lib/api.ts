@@ -74,15 +74,24 @@ export async function deleteClothingItem(id: string): Promise<void> {
   await apiClient.delete(`/clothing/${id}`);
 }
 
+export async function dismissDuplicate(id: string): Promise<ClothingItem> {
+  const { data } = await apiClient.post<ClothingItem>(`/clothing/${id}/dismiss-duplicate`);
+  return data;
+}
+
 export async function getWeather(): Promise<WeatherData> {
   const { data } = await apiClient.get<WeatherData>("/recommendations/weather");
   return data;
 }
 
-export async function getRecommendations(occasion: Occasion): Promise<RecommendationResponse> {
-  const { data } = await apiClient.get<RecommendationResponse>("/recommendations", {
-    params: { occasion },
-  });
+export async function getRecommendations(
+  occasion: Occasion | null,
+  customRequest?: string,
+): Promise<RecommendationResponse> {
+  const body: { occasion?: Occasion; custom_request?: string } = {};
+  if (occasion) body.occasion = occasion;
+  if (customRequest) body.custom_request = customRequest;
+  const { data } = await apiClient.post<RecommendationResponse>("/recommendations", body);
   return data;
 }
 

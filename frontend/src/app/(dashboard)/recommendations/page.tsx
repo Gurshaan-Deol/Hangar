@@ -21,8 +21,12 @@ const DATE_LABEL = new Date().toLocaleDateString("en-US", {
   day: "numeric",
 });
 
+const MAX_CUSTOM_LENGTH = 300;
+
 export default function RecommendationsPage() {
-  const [occasion, setOccasion] = useState<Occasion>("casual");
+  const [occasion, setOccasion] = useState<Occasion | null>(null);
+  const [customRequest, setCustomRequest] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [outfit, setOutfit] = useState<Outfit | null>(null);
   const [notEnoughItems, setNotEnoughItems] = useState(false);
 
@@ -38,9 +42,10 @@ export default function RecommendationsPage() {
   });
 
   const { mutate: generate, isPending, error: genError } = useMutation({
-    mutationFn: () => getRecommendations(occasion),
+    mutationFn: () => getRecommendations(occasion, customRequest || undefined),
     onSuccess: (data) => {
       setNotEnoughItems(false);
+      setValidationError(null);
       setOutfit(data.outfit);
     },
     onError: (err: Error) => {
@@ -50,6 +55,29 @@ export default function RecommendationsPage() {
       );
     },
   });
+
+  function handleOccasionChange(value: Occasion) {
+    setOccasion(value);
+    setCustomRequest("");
+    setValidationError(null);
+  }
+
+  function handleCustomRequestChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const value = e.target.value.slice(0, MAX_CUSTOM_LENGTH);
+    setCustomRequest(value);
+    if (value) {
+      setOccasion(null);
+    }
+    setValidationError(null);
+  }
+
+  function handleGenerate() {
+    if (!occasion && !customRequest.trim()) {
+      setValidationError("Please select an occasion or describe what you're looking for");
+      return;
+    }
+    generate();
+  }
 
   return (
     <ProtectedRoute>
@@ -79,15 +107,36 @@ export default function RecommendationsPage() {
             ) : null}
           </div>
 
-          {/* Occasion selector */}
-          <div className="mb-8 space-y-3">
+          {/* Occasion selector + free-text */}
+          <div className="mb-8 space-y-4">
             <p className="text-sm text-gray-400">What&apos;s the occasion?</p>
-            <OccasionSelector selected={occasion} onChange={setOccasion} />
+            <OccasionSelector selected={occasion} onChange={handleOccasionChange} />
+
+            {/* Free-text request */}
+            <div className="relative">
+              <textarea
+                value={customRequest}
+                onChange={handleCustomRequestChange}
+                rows={3}
+                placeholder="Or describe what you need... (e.g. 'something smart but comfortable for a long flight' or 'cozy outfit for a rainy day at home')"
+                className={cn(
+                  "w-full resize-none rounded-xl border bg-[var(--color-surface-raised)] px-4 py-3 pb-7 text-sm text-gray-200 placeholder-gray-500 outline-none transition-colors duration-200",
+                  "border-gray-700 focus:border-indigo-500",
+                )}
+              />
+              <span className="absolute bottom-2.5 right-3 text-xs text-gray-500 select-none">
+                {customRequest.length}/{MAX_CUSTOM_LENGTH}
+              </span>
+            </div>
+
+            {validationError && (
+              <p className="text-sm text-red-400">{validationError}</p>
+            )}
           </div>
 
           {/* Generate button */}
           <button
-            onClick={() => generate()}
+            onClick={handleGenerate}
             disabled={isPending || weatherLoading}
             className={cn(
               "mb-8 flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-sm font-semibold transition-all duration-200",
@@ -130,7 +179,7 @@ export default function RecommendationsPage() {
               <ErrorMessage
                 title="Couldn't generate outfit"
                 message={genError instanceof Error ? genError.message : "Something went wrong."}
-                onRetry={() => generate()}
+                onRetry={handleGenerate}
               />
             </div>
           )}

@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { X, Shirt } from "lucide-react";
+import { X, Shirt, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { deleteClothingItem } from "@/lib/api";
+import { deleteClothingItem, dismissDuplicate, getClothingItem } from "@/lib/api";
 import type { ClothingItem } from "@/types/clothing";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
@@ -22,14 +22,17 @@ interface ClothingDetailModalProps {
   item: ClothingItem | null;
   onClose: () => void;
   onDelete: (id: string) => void;
+  onUpdate: (item: ClothingItem) => void;
 }
 
-export function ClothingDetailModal({ item, onClose, onDelete }: ClothingDetailModalProps) {
+export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: ClothingDetailModalProps) {
   const [visible, setVisible] = useState(false);
   const [deleteConfirming, setDeleteConfirming] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDismissing, setIsDismissing] = useState(false);
+  const [duplicateItem, setDuplicateItem] = useState<ClothingItem | null>(null);
 
-  // Animate in: defer one frame so the transition fires from the initial state
+  // Animate in
   useEffect(() => {
     if (!item) {
       setVisible(false);
@@ -39,11 +42,19 @@ export function ClothingDetailModal({ item, onClose, onDelete }: ClothingDetailM
     return () => cancelAnimationFrame(id);
   }, [item]);
 
-  // Reset confirmation state when a different item opens
+  // Reset state and fetch duplicate when a different item opens
   useEffect(() => {
     setDeleteConfirming(false);
     setIsDeleting(false);
-  }, [item?.id]);
+    setIsDismissing(false);
+    setDuplicateItem(null);
+
+    if (item?.duplicate_of && !item.dismissed_duplicate) {
+      getClothingItem(item.duplicate_of).then(setDuplicateItem).catch(() => {
+        // Duplicate item may have been deleted — silently ignore
+      });
+    }
+  }, [item?.id, item?.duplicate_of, item?.dismissed_duplicate]);
 
   // Escape key closes the modal
   useEffect(() => {
@@ -57,8 +68,30 @@ export function ClothingDetailModal({ item, onClose, onDelete }: ClothingDetailM
   if (!item) return null;
 
   const badge = STATUS_BADGE[item.status];
+  const showDuplicateBanner = item.duplicate_of && !item.dismissed_duplicate;
 
   const handleDeleteConfirm = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteClothingItem(item.id);
+      onDelete(item.id);
+      onClose();
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleKeepBoth = async () => {
+    setIsDismissing(true);
+    try {
+      const updated = await dismissDuplicate(item.id);
+      onUpdate(updated);
+    } finally {
+      setIsDismissing(false);
+    }
+  };
+
+  const handleDeleteDuplicate = async () => {
     setIsDeleting(true);
     try {
       await deleteClothingItem(item.id);
@@ -113,6 +146,65 @@ export function ClothingDetailModal({ item, onClose, onDelete }: ClothingDetailM
 
           {/* RIGHT — details */}
           <div className="flex flex-1 flex-col overflow-y-auto p-8 md:max-h-[80vh]">
+            {/* Duplicate banner */}
+            {showDuplicateBanner && (
+              <div className="mb-5 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-amber-300">
+                      This looks similar to another item in your wardrobe
+                    </p>
+                    {item.duplicate_reason && (
+                      <p className="mt-1 text-xs text-amber-400/80">{item.duplicate_reason}</p>
+                    )}
+                    {/* Duplicate item thumbnail */}
+                    {duplicateItem && (
+                      <div className="mt-3 flex items-center gap-2.5">
+                        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-amber-500/20">
+                          {duplicateItem.image_url ? (
+                            <Image
+                              src={duplicateItem.image_url}
+                              alt={duplicateItem.name ?? "Similar item"}
+                              fill
+                              className="object-cover"
+                              sizes="48px"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-[var(--color-surface-raised)]">
+                              <Shirt className="h-5 w-5 text-gray-600" strokeWidth={1} />
+                            </div>
+                          )}
+                        </div>
+                        <p className="truncate text-xs text-gray-400">
+                          {duplicateItem.name ?? "Unnamed item"}
+                        </p>
+                      </div>
+                    )}
+                    {/* Action buttons */}
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        onClick={handleKeepBoth}
+                        disabled={isDismissing || isDeleting}
+                        className="flex items-center gap-1.5 rounded-xl border border-amber-500/30 px-3 py-1.5 text-xs font-medium text-amber-300 transition-colors hover:bg-amber-500/10 disabled:opacity-50"
+                      >
+                        {isDismissing && <LoadingSpinner size="sm" />}
+                        Keep both
+                      </button>
+                      <button
+                        onClick={handleDeleteDuplicate}
+                        disabled={isDismissing || isDeleting}
+                        className="flex items-center gap-1.5 rounded-xl bg-red-600/80 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-50"
+                      >
+                        {isDeleting && <LoadingSpinner size="sm" />}
+                        Delete this one
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Status badge */}
             <span
               className={cn(

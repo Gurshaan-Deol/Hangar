@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -38,6 +38,18 @@ class ClothingItem(Base):
     status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
     ai_raw_response: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Duplicate detection — set by the worker after AI analysis
+    duplicate_of: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("clothing_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    duplicate_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    duplicate_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    dismissed_duplicate: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow

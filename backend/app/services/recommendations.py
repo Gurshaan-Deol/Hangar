@@ -21,9 +21,11 @@ async def get_outfit_recommendation(
     user: User,
     weather: WeatherData,
     occasion: str = "casual",
+    custom_request: str | None = None,
 ) -> Outfit | dict:
     """Generate an AI outfit recommendation based on the user's wardrobe and current weather.
 
+    When custom_request is provided it is passed to the AI instead of the occasion label.
     Returns an Outfit ORM instance on success, or an error dict when preconditions fail.
     """
     result = await db.execute(
@@ -54,7 +56,7 @@ async def get_outfit_recommendation(
     ]
 
     ai = get_ai_provider()
-    ai_response = await ai.generate_outfit_recommendation(inventory, weather, occasion)
+    ai_response = await ai.generate_outfit_recommendation(inventory, weather, occasion, custom_request)
 
     selected_ids = ai_response.get("selected_item_ids", [])
     reasoning = ai_response.get("reasoning", "")

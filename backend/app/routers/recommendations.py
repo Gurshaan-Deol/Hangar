@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -16,6 +17,13 @@ from app.models.user import User
 from app.schemas.outfit import OutfitListResponse, OutfitResponse
 from app.services.recommendations import get_outfit_recommendation
 from app.services.weather import WeatherData, get_current_weather
+
+_VALID_OCCASIONS = "^(casual|work|formal|outdoor|date|party|travel|gym|brunch)$"
+
+
+class RecommendationRequest(BaseModel):
+    occasion: str | None = Field(None, pattern=_VALID_OCCASIONS)
+    custom_request: str | None = Field(None, max_length=300)
 
 logger = logging.getLogger(__name__)
 
@@ -73,9 +81,9 @@ async def recommendation_history(
     return OutfitListResponse(outfits=outfits, total=total, page=page, limit=limit)
 
 
-@router.get("")
+@router.post("")
 async def get_recommendation(
-    occasion: str = Query("casual", pattern="^(casual|work|formal|outdoor|date)$"),
+    body: RecommendationRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -83,7 +91,10 @@ async def get_recommendation(
     settings = get_settings()
     weather = await get_current_weather(settings.weather_lat, settings.weather_lon)
 
-    result = await get_outfit_recommendation(db, user, weather, occasion)
+    occasion = body.occasion or "casual"
+    result = await get_outfit_recommendation(
+        db, user, weather, occasion, body.custom_request
+    )
 
     if isinstance(result, dict) and "error" in result:
         raise HTTPException(
