@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { X, Shirt, AlertTriangle } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { deleteClothingItem, dismissDuplicate, getClothingItem } from "@/lib/api";
+import { AlertTriangle, Pencil, Shirt, X } from "lucide-react";
+import { cn, toTitleCase } from "@/lib/utils";
+import { deleteClothingItem, dismissDuplicate, getClothingItem, updateClothingItem } from "@/lib/api";
 import type { ClothingItem } from "@/types/clothing";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { ItemEditForm } from "@/components/clothing/ItemEditForm";
 
 const STATUS_BADGE: Record<
   ClothingItem["status"],
@@ -27,40 +28,32 @@ interface ClothingDetailModalProps {
 
 export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: ClothingDetailModalProps) {
   const [visible, setVisible] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [deleteConfirming, setDeleteConfirming] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
   const [duplicateItem, setDuplicateItem] = useState<ClothingItem | null>(null);
 
-  // Animate in
   useEffect(() => {
-    if (!item) {
-      setVisible(false);
-      return;
-    }
+    if (!item) { setVisible(false); return; }
     const id = requestAnimationFrame(() => setVisible(true));
     return () => cancelAnimationFrame(id);
   }, [item]);
 
-  // Reset state and fetch duplicate when a different item opens
   useEffect(() => {
     setDeleteConfirming(false);
     setIsDeleting(false);
     setIsDismissing(false);
     setDuplicateItem(null);
+    setIsEditing(item?.status === "failed");
 
     if (item?.duplicate_of && !item.dismissed_duplicate) {
-      getClothingItem(item.duplicate_of).then(setDuplicateItem).catch(() => {
-        // Duplicate item may have been deleted — silently ignore
-      });
+      getClothingItem(item.duplicate_of).then(setDuplicateItem).catch(() => {});
     }
-  }, [item?.id, item?.duplicate_of, item?.dismissed_duplicate]);
+  }, [item?.id, item?.duplicate_of, item?.dismissed_duplicate, item?.status]);
 
-  // Escape key closes the modal
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
@@ -83,12 +76,8 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
 
   const handleKeepBoth = async () => {
     setIsDismissing(true);
-    try {
-      const updated = await dismissDuplicate(item.id);
-      onUpdate(updated);
-    } finally {
-      setIsDismissing(false);
-    }
+    try { onUpdate(await dismissDuplicate(item.id)); }
+    finally { setIsDismissing(false); }
   };
 
   const handleDeleteDuplicate = async () => {
@@ -102,15 +91,16 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
     }
   };
 
+  const handleSave = async (updates: Partial<ClothingItem>) => {
+    const updated = await updateClothingItem(item.id, updates);
+    onUpdate(updated);
+    setIsEditing(false);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal */}
       <div
         className={cn(
           "relative z-10 w-full max-w-3xl overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl transition-all duration-200",
@@ -127,7 +117,7 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
         </button>
 
         <div className="flex flex-col md:flex-row">
-          {/* LEFT — image, edge to edge */}
+          {/* LEFT — image */}
           <div className="relative h-60 w-full shrink-0 md:h-auto md:w-1/2">
             {item.image_url ? (
               <Image
@@ -146,6 +136,16 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
 
           {/* RIGHT — details */}
           <div className="flex flex-1 flex-col overflow-y-auto p-8 md:max-h-[80vh]">
+            {/* Failed banner */}
+            {item.status === "failed" && (
+              <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                <p className="text-xs text-amber-300">
+                  AI analysis failed — fill in details manually
+                </p>
+              </div>
+            )}
+
             {/* Duplicate banner */}
             {showDuplicateBanner && (
               <div className="mb-5 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
@@ -158,7 +158,6 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
                     {item.duplicate_reason && (
                       <p className="mt-1 text-xs text-amber-400/80">{item.duplicate_reason}</p>
                     )}
-                    {/* Duplicate item thumbnail */}
                     {duplicateItem && (
                       <div className="mt-3 flex items-center gap-2.5">
                         <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-amber-500/20">
@@ -181,7 +180,6 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
                         </p>
                       </div>
                     )}
-                    {/* Action buttons */}
                     <div className="mt-3 flex gap-2">
                       <button
                         onClick={handleKeepBoth}
@@ -221,107 +219,127 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
 
             <hr className="my-4 border-[var(--color-border)]" />
 
-            <div className="space-y-4">
-              <DetailRow label="Category">
-                <span className="text-sm capitalize text-gray-200">
-                  {item.category ?? "—"}
-                </span>
-              </DetailRow>
-
-              <DetailRow label="Color">
-                {item.color ? (
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="h-3.5 w-3.5 shrink-0 rounded-full border border-white/20"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <span className="text-sm capitalize text-gray-200">{item.color}</span>
-                  </div>
-                ) : (
-                  <span className="text-sm text-gray-200">—</span>
-                )}
-              </DetailRow>
-
-              <DetailRow label="Style">
-                <span className="text-sm capitalize text-gray-200">
-                  {item.style ?? "—"}
-                </span>
-              </DetailRow>
-
-              <DetailRow label="Season">
-                {item.season && item.season.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {item.season.map((s) => (
-                      <span
-                        key={s}
-                        className="rounded-full bg-[var(--color-surface-raised)] px-2 py-0.5 text-xs capitalize text-gray-300"
-                      >
-                        {s}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="text-sm text-gray-200">—</span>
-                )}
-              </DetailRow>
-
-              <DetailRow label="Tags">
-                {item.tags && item.tags.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {item.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-xs text-indigo-300"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="text-sm text-gray-200">—</span>
-                )}
-              </DetailRow>
-            </div>
-
-            {item.notes && (
+            {isEditing ? (
+              <ItemEditForm
+                item={item}
+                onSave={handleSave}
+                onCancel={() => setIsEditing(false)}
+              />
+            ) : (
               <>
-                <hr className="my-4 border-[var(--color-border)]" />
-                <DetailRow label="Notes">
-                  <p className="text-sm italic text-gray-300">{item.notes}</p>
-                </DetailRow>
+                <div className="space-y-4">
+                  <DetailRow label="Category">
+                    <span className="text-sm text-gray-200">
+                      {item.category ? toTitleCase(item.category) : "—"}
+                    </span>
+                  </DetailRow>
+
+                  <DetailRow label="Color">
+                    {item.color ? (
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="h-3.5 w-3.5 shrink-0 rounded-full border border-white/20"
+                          style={{ backgroundColor: item.color }}
+                        />
+                        <span className="text-sm capitalize text-gray-200">{item.color}</span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-200">—</span>
+                    )}
+                  </DetailRow>
+
+                  <DetailRow label="Style">
+                    <span className="text-sm text-gray-200">
+                      {item.style ? toTitleCase(item.style) : "—"}
+                    </span>
+                  </DetailRow>
+
+                  <DetailRow label="Season">
+                    {item.season && item.season.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {item.season.map((s) => (
+                          <span
+                            key={s}
+                            className="rounded-full bg-[var(--color-surface-raised)] px-2 py-0.5 text-xs text-gray-300"
+                          >
+                            {toTitleCase(s)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-200">—</span>
+                    )}
+                  </DetailRow>
+
+                  <DetailRow label="Tags">
+                    {item.tags && item.tags.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {item.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-xs text-indigo-300"
+                          >
+                            {toTitleCase(tag)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-200">—</span>
+                    )}
+                  </DetailRow>
+                </div>
+
+                {item.notes && (
+                  <>
+                    <hr className="my-4 border-[var(--color-border)]" />
+                    <DetailRow label="Notes">
+                      <p className="text-sm italic text-gray-300">{item.notes}</p>
+                    </DetailRow>
+                  </>
+                )}
+
+                {/* Bottom actions */}
+                <div className="mt-auto flex items-center justify-between pt-6">
+                  {deleteConfirming ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-400">Are you sure?</span>
+                      <button
+                        onClick={handleDeleteConfirm}
+                        disabled={isDeleting}
+                        className="flex items-center gap-1.5 rounded-xl bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:opacity-50"
+                      >
+                        {isDeleting && <LoadingSpinner size="sm" />}
+                        Yes, delete
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirming(false)}
+                        disabled={isDeleting}
+                        className="rounded-xl border border-[var(--color-border)] px-3 py-1.5 text-sm text-gray-400 transition-colors hover:text-white disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setDeleteConfirming(true)}
+                      className="rounded-xl border border-red-500/20 px-4 py-2 text-sm text-red-400 transition-all duration-200 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300"
+                    >
+                      Delete Item
+                    </button>
+                  )}
+
+                  {!deleteConfirming && (
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="flex items-center gap-1.5 rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors hover:bg-indigo-500/20 hover:text-indigo-200"
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Edit
+                    </button>
+                  )}
+                </div>
               </>
             )}
-
-            {/* Delete button — pushed to bottom */}
-            <div className="mt-auto pt-6">
-              {deleteConfirming ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-400">Are you sure?</span>
-                  <button
-                    onClick={handleDeleteConfirm}
-                    disabled={isDeleting}
-                    className="flex items-center gap-1.5 rounded-xl bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:opacity-50"
-                  >
-                    {isDeleting && <LoadingSpinner size="sm" />}
-                    Yes, delete
-                  </button>
-                  <button
-                    onClick={() => setDeleteConfirming(false)}
-                    disabled={isDeleting}
-                    className="rounded-xl border border-[var(--color-border)] px-3 py-1.5 text-sm text-gray-400 transition-colors hover:text-white disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setDeleteConfirming(true)}
-                  className="rounded-xl border border-red-500/20 px-4 py-2 text-sm text-red-400 transition-all duration-200 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300"
-                >
-                  Delete Item
-                </button>
-              )}
-            </div>
           </div>
         </div>
       </div>

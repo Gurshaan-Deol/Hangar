@@ -79,6 +79,14 @@ export async function dismissDuplicate(id: string): Promise<ClothingItem> {
   return data;
 }
 
+export async function updateClothingItem(
+  itemId: string,
+  updates: Partial<Pick<ClothingItem, "name" | "category" | "color" | "style" | "season" | "tags">>,
+): Promise<ClothingItem> {
+  const { data } = await apiClient.patch<ClothingItem>(`/clothing/${itemId}`, updates);
+  return data;
+}
+
 export async function getWeather(): Promise<WeatherData> {
   const { data } = await apiClient.get<WeatherData>("/recommendations/weather");
   return data;

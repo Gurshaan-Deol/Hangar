@@ -2,7 +2,6 @@
 
 **Self-hosted AI wardrobe manager. Snap your clothes, get outfit suggestions.**
 
-[![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-orange?style=flat-square)](https://claude.ai/code)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org)
@@ -37,9 +36,9 @@ docker compose up -d
 docker compose exec backend alembic upgrade head
 ```
 
-| Service | URL |
-|---|---|
-| Frontend | http://localhost:3000 |
+| Service            | URL                        |
+| ------------------ | -------------------------- |
+| Frontend           | http://localhost:3000      |
 | API docs (Swagger) | http://localhost:8000/docs |
 
 ---
@@ -107,16 +106,16 @@ Photo uploads are analysed in the background by an **arq worker** so the HTTP re
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend | Next.js 14, TypeScript, TanStack Query v5, Tailwind CSS, shadcn/ui |
-| Backend | FastAPI 0.111, SQLAlchemy 2.0 (async), Pydantic v2, Python 3.11+ |
-| Database | PostgreSQL 15 |
-| Cache + Queue | Redis 7 + arq |
-| Auth | NextAuth.js v5 (GitHub + Google OAuth) |
-| AI | Any OpenAI-compatible API (OpenAI, Gemini, Ollama, …) |
-| Weather | [Open-Meteo](https://open-meteo.com) — free, no API key needed |
-| Deployment | Docker + Docker Compose |
+| Layer         | Technology                                                         |
+| ------------- | ------------------------------------------------------------------ |
+| Frontend      | Next.js 14, TypeScript, TanStack Query v5, Tailwind CSS, shadcn/ui |
+| Backend       | FastAPI 0.111, SQLAlchemy 2.0 (async), Pydantic v2, Python 3.11+   |
+| Database      | PostgreSQL 15                                                      |
+| Cache + Queue | Redis 7 + arq                                                      |
+| Auth          | NextAuth.js v5 (GitHub + Google OAuth)                             |
+| AI            | Any OpenAI-compatible API (OpenAI, Gemini, Ollama, …)              |
+| Weather       | [Open-Meteo](https://open-meteo.com) — free, no API key needed     |
+| Deployment    | Docker + Docker Compose                                            |
 
 ---
 

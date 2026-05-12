@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class ClothingItemBase(BaseModel):
@@ -21,6 +21,8 @@ class ClothingItemCreate(ClothingItemBase):
 
 
 class ClothingItemUpdate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     name: str | None = None
     category: str | None = None
     color: str | None = None
