@@ -170,15 +170,9 @@ export default function WardrobePage() {
           item={selectedItem}
           onClose={() => setSelectedItem(null)}
           onDelete={handleDelete}
-          onUpdate={(updatedItem) => {
-            queryClient.setQueryData<ClothingItemListResponse>(["wardrobe"], (old) => {
-              if (!old) return old;
-              return {
-                ...old,
-                items: old.items.map((i) => (i.id === updatedItem.id ? updatedItem : i)),
-              };
-            });
-            setSelectedItem(updatedItem);
+          onUpdate={(updated) => {
+            setSelectedItem(updated);
+            handleItemUpdated(updated);
           }}
         />
       </div>
