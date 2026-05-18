@@ -39,6 +39,7 @@ const mockItem: ClothingItem = {
   tags: ['weekend', 'outdoor'],
   image_url: null,
   status: 'ready',
+  attempt_count: 0,
   notes: null,
   duplicate_of: null,
   duplicate_confidence: null,

@@ -3,6 +3,7 @@
 import logging
 import os
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -223,6 +224,45 @@ async def dismiss_duplicate(
     item.dismissed_duplicate = True
     await db.commit()
     await db.refresh(item)
+    return item
+
+
+@router.post("/{item_id}/retry", response_model=ClothingItemResponse)
+async def retry_analysis(
+    item_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+) -> ClothingItem:
+    """Re-enqueue AI analysis for a failed or stuck item.
+
+    Only allowed when status is 'failed', or when the item has been in 'pending'
+    or 'analyzing' state for over 10 minutes (stuck job detection).
+    """
+    item = await _get_owned_item(item_id, current_user, db)
+
+    stuck_cutoff = datetime.now(timezone.utc) - timedelta(minutes=10)
+    is_stuck = item.status in ("pending", "analyzing") and item.updated_at < stuck_cutoff
+    if item.status != "failed" and not is_stuck:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Item can only be retried when status is 'failed' or when stuck for over 10 minutes",
+        )
+
+    item.status = "pending"
+    item.attempt_count = 0
+    await db.commit()
+    await db.refresh(item)
+
+    try:
+        await redis.enqueue_job("analyze_clothing_image", str(item.id))
+    except Exception as e:
+        logger.error("Failed to re-enqueue analysis job for item %s: %s", item.id, e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not re-enqueue analysis. Please try again.",
+        )
+
     return item
 
 

@@ -1,4 +1,4 @@
-import { Cloud, CloudLightning, CloudRain, CloudSnow, Droplets, Sun, Thermometer, Wind } from "lucide-react";
+import { Cloud, CloudLightning, CloudRain, CloudSnow, Droplets, RefreshCw, Sun, Thermometer, Wind } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { WeatherData } from "@/types/recommendations";
 
@@ -22,9 +22,11 @@ const CONDITION_ICON_CLASS: Record<string, string> = {
 
 interface WeatherWidgetProps {
   weather: WeatherData;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
-export function WeatherWidget({ weather }: WeatherWidgetProps) {
+export function WeatherWidget({ weather, onRefresh, isRefreshing = false }: WeatherWidgetProps) {
   const Icon = CONDITION_ICON[weather.condition] ?? Cloud;
   const iconClass = CONDITION_ICON_CLASS[weather.condition] ?? "text-gray-300";
   const conditionLabel =
@@ -46,7 +48,19 @@ export function WeatherWidget({ weather }: WeatherWidgetProps) {
           <p className="mt-1.5 text-base font-medium text-blue-100">{conditionLabel}</p>
         </div>
 
-        <Icon className={cn("h-12 w-12 opacity-90", iconClass)} />
+        <div className="flex flex-col items-end gap-2">
+          <Icon className={cn("h-12 w-12 opacity-90", iconClass)} />
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              aria-label="Refresh weather"
+              className="rounded-lg p-1.5 text-blue-400 transition-colors hover:bg-blue-500/10 hover:text-blue-300 disabled:opacity-50"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-4 border-t border-blue-500/20 pt-4 text-xs text-blue-300">

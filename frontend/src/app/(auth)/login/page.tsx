@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import { Github, Globe, Lock, Shirt } from "lucide-react";
+import { Github, Globe, Loader2, Lock, Shirt } from "lucide-react";
 
 function SyncErrorBanner() {
   const params = useSearchParams();
@@ -17,6 +17,17 @@ function SyncErrorBanner() {
 }
 
 export default function LoginPage() {
+  const [loadingProvider, setLoadingProvider] = useState<"github" | "google" | null>(null);
+
+  async function handleSignIn(provider: "github" | "google") {
+    setLoadingProvider(provider);
+    try {
+      await signIn(provider, { callbackUrl: "/wardrobe" });
+    } catch {
+      setLoadingProvider(null);
+    }
+  }
+
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-black px-4">
       {/* Radial gradient background */}
@@ -78,19 +89,31 @@ export default function LoginPage() {
         {/* Auth buttons */}
         <div className="flex flex-col gap-3">
           <button
-            onClick={() => signIn("github", { callbackUrl: "/wardrobe" })}
-            className="flex w-full items-center justify-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-4 py-3 text-sm font-medium text-white transition-all duration-200 hover:border-white/20 hover:bg-[var(--color-surface-overlay)] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            onClick={() => handleSignIn("github")}
+            disabled={loadingProvider !== null}
+            className="flex w-full items-center justify-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-4 py-3 text-sm font-medium text-white transition-all duration-200 hover:border-white/20 hover:bg-[var(--color-surface-overlay)] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:cursor-not-allowed"
+            style={{ opacity: loadingProvider === "google" ? 0.5 : 1 }}
           >
-            <Github className="h-4 w-4" />
-            Continue with GitHub
+            {loadingProvider === "github" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Github className="h-4 w-4" />
+            )}
+            {loadingProvider === "github" ? "Connecting…" : "Continue with GitHub"}
           </button>
 
           <button
-            onClick={() => signIn("google", { callbackUrl: "/wardrobe" })}
-            className="flex w-full items-center justify-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-4 py-3 text-sm font-medium text-white transition-all duration-200 hover:border-white/20 hover:bg-[var(--color-surface-overlay)] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            onClick={() => handleSignIn("google")}
+            disabled={loadingProvider !== null}
+            className="flex w-full items-center justify-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-4 py-3 text-sm font-medium text-white transition-all duration-200 hover:border-white/20 hover:bg-[var(--color-surface-overlay)] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:cursor-not-allowed"
+            style={{ opacity: loadingProvider === "github" ? 0.5 : 1 }}
           >
-            <Globe className="h-4 w-4" />
-            Continue with Google
+            {loadingProvider === "google" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Globe className="h-4 w-4" />
+            )}
+            {loadingProvider === "google" ? "Connecting…" : "Continue with Google"}
           </button>
         </div>
 

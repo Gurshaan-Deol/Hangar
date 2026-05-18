@@ -9,6 +9,7 @@ export interface ClothingItem {
   tags: string[] | null;
   image_url: string | null;
   status: "pending" | "analyzing" | "ready" | "failed";
+  attempt_count: number;
   notes: string | null;
   duplicate_of: string | null;
   duplicate_confidence: number | null;
@@ -21,6 +22,7 @@ export interface ClothingItemStatus {
   id: string;
   status: ClothingItem["status"];
   name: string | null;
+  attempt_count: number;
 }
 
 export interface ClothingItemListResponse {

@@ -6,6 +6,7 @@ import { AlertTriangle, Pencil, Shirt, X } from "lucide-react";
 import { cn, toTitleCase } from "@/lib/utils";
 import { deleteClothingItem, dismissDuplicate, getClothingItem, updateClothingDetails } from "@/lib/api";
 import type { ClothingItem } from "@/types/clothing";
+import { AlertDialog } from "@/components/ui/AlertDialog";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { ItemEditForm } from "@/components/clothing/ItemEditForm";
 
@@ -29,7 +30,7 @@ interface ClothingDetailModalProps {
 export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: ClothingDetailModalProps) {
   const [visible, setVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [deleteConfirming, setDeleteConfirming] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
   const [duplicateItem, setDuplicateItem] = useState<ClothingItem | null>(null);
@@ -41,7 +42,7 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
   }, [item]);
 
   useEffect(() => {
-    setDeleteConfirming(false);
+    setDeleteDialogOpen(false);
     setIsDeleting(false);
     setIsDismissing(false);
     setDuplicateItem(null);
@@ -98,6 +99,18 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
   };
 
   return (
+    <>
+    <AlertDialog
+      open={deleteDialogOpen}
+      onOpenChange={setDeleteDialogOpen}
+      title="Delete this item?"
+      description={`This will permanently remove ${item.name ?? "this item"} from your wardrobe. This cannot be undone.`}
+      cancelLabel="Cancel"
+      confirmLabel="Delete"
+      confirmClassName="bg-red-600 hover:bg-red-700 text-white"
+      isConfirming={isDeleting}
+      onConfirm={handleDeleteConfirm}
+    />
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
@@ -300,43 +313,20 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
 
                 {/* Bottom actions */}
                 <div className="mt-auto flex items-center justify-between pt-6">
-                  {deleteConfirming ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-400">Are you sure?</span>
-                      <button
-                        onClick={handleDeleteConfirm}
-                        disabled={isDeleting}
-                        className="flex items-center gap-1.5 rounded-xl bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:opacity-50"
-                      >
-                        {isDeleting && <LoadingSpinner size="sm" />}
-                        Yes, delete
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirming(false)}
-                        disabled={isDeleting}
-                        className="rounded-xl border border-[var(--color-border)] px-3 py-1.5 text-sm text-gray-400 transition-colors hover:text-white disabled:opacity-50"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setDeleteConfirming(true)}
-                      className="rounded-xl border border-red-500/20 px-4 py-2 text-sm text-red-400 transition-all duration-200 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300"
-                    >
-                      Delete Item
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setDeleteDialogOpen(true)}
+                    className="rounded-xl border border-red-500/20 px-4 py-2 text-sm text-red-400 transition-all duration-200 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300"
+                  >
+                    Delete Item
+                  </button>
 
-                  {!deleteConfirming && (
-                    <button
-                      onClick={() => setIsEditing(true)}
-                      className="flex items-center gap-1.5 rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors hover:bg-indigo-500/20 hover:text-indigo-200"
-                    >
-                      <Pencil className="h-3 w-3" />
-                      Edit
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="flex items-center gap-1.5 rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors hover:bg-indigo-500/20 hover:text-indigo-200"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    Edit
+                  </button>
                 </div>
               </>
             )}
@@ -344,6 +334,7 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
         </div>
       </div>
     </div>
+    </>
   );
 }
 

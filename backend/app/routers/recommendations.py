@@ -20,6 +20,7 @@ from app.services.recommendations import get_outfit_recommendation
 from app.services.weather import WeatherData, get_current_weather
 
 _VALID_OCCASIONS = "^(casual|work|formal|outdoor|date|party|travel|gym|brunch)$"
+_MIN_REQUIRED = 3
 
 
 class RecommendationRequest(BaseModel):
@@ -112,7 +113,11 @@ async def get_recommendation(
     if isinstance(result, dict) and "error" in result:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result["message"],
+            detail={
+                "code": result["error"],
+                "current_count": result.get("current_count", 0),
+                "items_needed": result.get("items_needed", _MIN_REQUIRED),
+            },
         )
 
     outfit_response = OutfitResponse.model_validate(result)

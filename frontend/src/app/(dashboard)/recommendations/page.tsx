@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Sparkles } from "lucide-react";
+import { Shirt, Sparkles } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { WeatherWidget } from "@/components/recommendations/WeatherWidget";
@@ -12,7 +12,7 @@ import { OutfitDisplay } from "@/components/recommendations/OutfitDisplay";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { cn } from "@/lib/utils";
-import { getWeather, getRecommendations } from "@/lib/api";
+import { getWeather, getRecommendations, NotEnoughItemsError } from "@/lib/api";
 import type { Occasion, Outfit } from "@/types/recommendations";
 
 const DATE_LABEL = new Date().toLocaleDateString("en-US", {
@@ -22,17 +22,59 @@ const DATE_LABEL = new Date().toLocaleDateString("en-US", {
 });
 
 const MAX_CUSTOM_LENGTH = 300;
+const REQUIRED_COUNT = 3;
+
+interface NotEnoughState {
+  currentCount: number;
+  itemsNeeded: number;
+}
+
+function NotEnoughItemsCard({ currentCount, itemsNeeded }: NotEnoughState) {
+  const filledCircles = Math.min(currentCount, REQUIRED_COUNT);
+  const emptyCircles = REQUIRED_COUNT - filledCircles;
+
+  return (
+    <div className="mb-6 flex flex-col items-center rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-10 text-center">
+      <Shirt className="mb-4 h-12 w-12 text-gray-600" strokeWidth={1.2} />
+      <h2 className="text-xl font-semibold text-white">Almost there!</h2>
+      <p className="mt-2 text-sm text-gray-400">
+        You have {currentCount} analyzed item{currentCount !== 1 ? "s" : ""} in your wardrobe.
+      </p>
+
+      {/* Progress circles */}
+      <div className="mt-5 flex items-center gap-2.5">
+        {Array.from({ length: filledCircles }).map((_, i) => (
+          <span key={`filled-${i}`} className="h-4 w-4 rounded-full bg-indigo-500" />
+        ))}
+        {Array.from({ length: emptyCircles }).map((_, i) => (
+          <span key={`empty-${i}`} className="h-4 w-4 rounded-full border-2 border-gray-600" />
+        ))}
+      </div>
+
+      <p className="mt-4 text-sm text-gray-400">
+        Add {itemsNeeded} more item{itemsNeeded !== 1 ? "s" : ""} to unlock recommendations
+      </p>
+      <Link
+        href="/wardrobe"
+        className="mt-5 inline-block rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
+      >
+        Go to Wardrobe
+      </Link>
+    </div>
+  );
+}
 
 export default function RecommendationsPage() {
   const [occasion, setOccasion] = useState<Occasion | null>(null);
   const [customRequest, setCustomRequest] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [outfit, setOutfit] = useState<Outfit | null>(null);
-  const [notEnoughItems, setNotEnoughItems] = useState(false);
+  const [notEnough, setNotEnough] = useState<NotEnoughState | null>(null);
 
   const {
     data: weather,
     isLoading: weatherLoading,
+    isFetching: weatherFetching,
     error: weatherError,
     refetch: refetchWeather,
   } = useQuery({
@@ -44,15 +86,16 @@ export default function RecommendationsPage() {
   const { mutate: generate, isPending, error: genError } = useMutation({
     mutationFn: () => getRecommendations(occasion, customRequest || undefined),
     onSuccess: (data) => {
-      setNotEnoughItems(false);
+      setNotEnough(null);
       setValidationError(null);
       setOutfit(data.outfit);
     },
     onError: (err: Error) => {
-      setNotEnoughItems(
-        err.message.toLowerCase().includes("at least 3") ||
-          err.message.toLowerCase().includes("not_enough"),
-      );
+      if (err instanceof NotEnoughItemsError) {
+        setNotEnough({ currentCount: err.currentCount, itemsNeeded: err.itemsNeeded });
+      } else {
+        setNotEnough(null);
+      }
     },
   });
 
@@ -65,9 +108,7 @@ export default function RecommendationsPage() {
   function handleCustomRequestChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const value = e.target.value.slice(0, MAX_CUSTOM_LENGTH);
     setCustomRequest(value);
-    if (value) {
-      setOccasion(null);
-    }
+    if (value) setOccasion(null);
     setValidationError(null);
   }
 
@@ -103,7 +144,11 @@ export default function RecommendationsPage() {
                 onRetry={() => refetchWeather()}
               />
             ) : weather ? (
-              <WeatherWidget weather={weather} />
+              <WeatherWidget
+                weather={weather}
+                onRefresh={() => refetchWeather()}
+                isRefreshing={weatherFetching}
+              />
             ) : null}
           </div>
 
@@ -112,7 +157,6 @@ export default function RecommendationsPage() {
             <p className="text-sm text-gray-400">What&apos;s the occasion?</p>
             <OccasionSelector selected={occasion} onChange={handleOccasionChange} />
 
-            {/* Free-text request */}
             <div className="relative">
               <textarea
                 value={customRequest}
@@ -124,7 +168,7 @@ export default function RecommendationsPage() {
                   "border-gray-700 focus:border-indigo-500",
                 )}
               />
-              <span className="absolute bottom-2.5 right-3 text-xs text-gray-500 select-none">
+              <span className="absolute bottom-2.5 right-3 select-none text-xs text-gray-500">
                 {customRequest.length}/{MAX_CUSTOM_LENGTH}
               </span>
             </div>
@@ -158,23 +202,16 @@ export default function RecommendationsPage() {
             )}
           </button>
 
-          {/* Not enough items */}
-          {notEnoughItems && (
-            <div className="mb-6 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-6 text-center">
-              <p className="text-sm font-medium text-gray-300">
-                Add at least 3 items to your wardrobe first
-              </p>
-              <Link
-                href="/wardrobe"
-                className="mt-3 inline-block rounded-xl border border-indigo-500/40 px-4 py-2 text-sm font-medium text-indigo-400 transition-colors hover:bg-indigo-500/10"
-              >
-                Go to Wardrobe
-              </Link>
-            </div>
+          {/* Not enough items — rich empty state */}
+          {notEnough && (
+            <NotEnoughItemsCard
+              currentCount={notEnough.currentCount}
+              itemsNeeded={notEnough.itemsNeeded}
+            />
           )}
 
           {/* Generic generation error */}
-          {genError && !notEnoughItems && (
+          {genError && !notEnough && (
             <div className="mb-6">
               <ErrorMessage
                 title="Couldn't generate outfit"

@@ -11,6 +11,7 @@ from pathlib import Path
 from PIL import Image, ImageEnhance, ImageFilter, ImageStat
 from arq.connections import RedisSettings
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database import AsyncSessionLocal
@@ -57,15 +58,20 @@ def preprocess_image(image_path: str) -> str:
 async def analyze_with_retry(
     provider: BaseAIProvider,
     image_path: str,
+    item: ClothingItem,
+    db: AsyncSession,
     max_attempts: int = 3,
 ) -> ClothingAnalysis:
     """Run AI clothing analysis with automatic retries on any failure.
 
-    Sleeps 2 seconds between attempts.  Logs a warning before the final retry
-    to indicate the model is struggling.
+    Increments item.attempt_count before each attempt so the frontend can show
+    live progress. Sleeps 2 seconds between attempts.
     """
     for attempt in range(1, max_attempts + 1):
         logger.info("Analysis attempt %d/%d for %s", attempt, max_attempts, image_path)
+        item.attempt_count = attempt
+        await db.commit()
+
         try:
             return await provider.analyze_clothing_image(image_path)
         except Exception as exc:
@@ -145,7 +151,7 @@ async def analyze_clothing_image(ctx: dict, item_id: str) -> None:
 
             processed_path = await asyncio.to_thread(preprocess_image, cleaned_path)
             try:
-                analysis = await analyze_with_retry(provider, processed_path)
+                analysis = await analyze_with_retry(provider, processed_path, item, db)
             finally:
                 if processed_path != cleaned_path and os.path.exists(processed_path):
                     os.unlink(processed_path)

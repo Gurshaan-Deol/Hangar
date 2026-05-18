@@ -52,6 +52,7 @@ class ClothingItemResponse(ClothingItemBase):
     user_id: UUID
     image_url: str | None = None
     status: str
+    attempt_count: int = 0
     duplicate_of: UUID | None = None
     duplicate_confidence: float | None = None
     duplicate_reason: str | None = None
@@ -65,6 +66,7 @@ class ClothingItemStatusResponse(BaseModel):
     id: UUID
     status: str
     name: str | None = None
+    attempt_count: int = 0
 
     model_config = {"from_attributes": True}
 

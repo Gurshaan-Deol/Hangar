@@ -9,12 +9,25 @@ import type {
 } from "@/types/recommendations";
 
 export class ApiError extends Error {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  public detail?: any;
+
   constructor(
     public readonly status: number,
     message: string,
   ) {
     super(message);
     this.name = "ApiError";
+  }
+}
+
+export class NotEnoughItemsError extends Error {
+  constructor(
+    public readonly currentCount: number,
+    public readonly itemsNeeded: number,
+  ) {
+    super("not_enough_items");
+    this.name = "NotEnoughItemsError";
   }
 }
 
@@ -34,10 +47,16 @@ apiClient.interceptors.response.use(
       return Promise.reject(new ApiError(401, "Session expired. Please sign in again."));
     }
 
-    const message =
-      error.response?.data?.detail ?? "An unexpected error occurred. Please try again.";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawDetail: any = error.response?.data?.detail;
+    const message: string =
+      typeof rawDetail === "string"
+        ? rawDetail
+        : (rawDetail?.message ?? "An unexpected error occurred. Please try again.");
 
-    return Promise.reject(new ApiError(httpStatus ?? 500, message));
+    const apiErr = new ApiError(httpStatus ?? 500, message);
+    apiErr.detail = rawDetail;
+    return Promise.reject(apiErr);
   },
 );
 
@@ -74,6 +93,11 @@ export async function deleteClothingItem(id: string): Promise<void> {
   await apiClient.delete(`/clothing/${id}`);
 }
 
+export async function retryAnalysis(id: string): Promise<ClothingItem> {
+  const { data } = await apiClient.post<ClothingItem>(`/clothing/${id}/retry`);
+  return data;
+}
+
 export async function dismissDuplicate(id: string): Promise<ClothingItem> {
   const { data } = await apiClient.post<ClothingItem>(`/clothing/${id}/dismiss-duplicate`);
   return data;
@@ -107,8 +131,15 @@ export async function getRecommendations(
   const body: { occasion?: Occasion; custom_request?: string } = {};
   if (occasion) body.occasion = occasion;
   if (customRequest) body.custom_request = customRequest;
-  const { data } = await apiClient.post<RecommendationResponse>("/recommendations", body);
-  return data;
+  try {
+    const { data } = await apiClient.post<RecommendationResponse>("/recommendations", body);
+    return data;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 400 && err.detail?.code === "not_enough_items") {
+      throw new NotEnoughItemsError(err.detail.current_count ?? 0, err.detail.items_needed ?? 3);
+    }
+    throw err;
+  }
 }
 
 export async function getCurrentUser(): Promise<User> {

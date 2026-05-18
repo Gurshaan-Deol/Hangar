@@ -94,7 +94,10 @@ async def get_outfit_recommendation(
     if len(items) < _MIN_ITEMS:
         return {
             "error": "not_enough_items",
-            "message": "Add at least 3 clothing items to get recommendations",
+            "message": "Not enough items",
+            "current_count": len(items),
+            "required_count": _MIN_ITEMS,
+            "items_needed": _MIN_ITEMS - len(items),
         }
 
     inventory = [

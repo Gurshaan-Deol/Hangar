@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, XCircle, Sparkles } from "lucide-react";
-import { getClothingItem, getClothingItemStatus } from "@/lib/api";
+import { AlertTriangle, Loader2, XCircle } from "lucide-react";
+import { getClothingItem, getClothingItemStatus, retryAnalysis } from "@/lib/api";
 import type { ClothingItem } from "@/types/clothing";
 
 const POLL_INTERVAL_MS = 3000;
@@ -11,23 +11,54 @@ const TIMEOUT_MS = 5 * 60 * 1000;
 interface AnalysisStatusProps {
   itemId: string;
   initialStatus: ClothingItem["status"];
+  initialAttemptCount?: number;
   onComplete: (item: ClothingItem) => void;
 }
 
-export function AnalysisStatus({ itemId, initialStatus, onComplete }: AnalysisStatusProps) {
+function useElapsedMs(active: boolean) {
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!active) { setElapsed(0); startRef.current = null; return; }
+    startRef.current = Date.now();
+    const tick = () => {
+      setElapsed(Date.now() - (startRef.current ?? Date.now()));
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [active]);
+
+  return elapsed;
+}
+
+function statusMessage(elapsed: number) {
+  if (elapsed >= 30_000) return "This is taking longer than usual…";
+  if (elapsed >= 10_000) return "Still working…";
+  return "Analyzing your item…";
+}
+
+export function AnalysisStatus({
+  itemId,
+  initialStatus,
+  initialAttemptCount = 0,
+  onComplete,
+}: AnalysisStatusProps) {
   const [status, setStatus] = useState<ClothingItem["status"]>(initialStatus);
+  const [attemptCount, setAttemptCount] = useState(initialAttemptCount);
+  const [timedOut, setTimedOut] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const isActive = !timedOut && (status === "pending" || status === "analyzing");
+  const elapsed = useElapsedMs(isActive);
+
   const stopPolling = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
   }, []);
 
   useEffect(() => {
@@ -35,14 +66,15 @@ export function AnalysisStatus({ itemId, initialStatus, onComplete }: AnalysisSt
 
     const poll = async () => {
       try {
-        const { status: newStatus } = await getClothingItemStatus(itemId);
-        setStatus(newStatus);
+        const res = await getClothingItemStatus(itemId);
+        setStatus(res.status);
+        setAttemptCount(res.attempt_count);
 
-        if (newStatus === "ready") {
+        if (res.status === "ready") {
           stopPolling();
           const fullItem = await getClothingItem(itemId);
           onComplete(fullItem);
-        } else if (newStatus === "failed") {
+        } else if (res.status === "failed") {
           stopPolling();
         }
       } catch {
@@ -52,51 +84,71 @@ export function AnalysisStatus({ itemId, initialStatus, onComplete }: AnalysisSt
 
     poll();
     intervalRef.current = setInterval(poll, POLL_INTERVAL_MS);
-    timeoutRef.current = setTimeout(stopPolling, TIMEOUT_MS);
+    timeoutRef.current = setTimeout(() => {
+      stopPolling();
+      setTimedOut(true);
+    }, TIMEOUT_MS);
 
     return stopPolling;
   }, [itemId, initialStatus, onComplete, stopPolling]);
 
-  if (status === "ready") {
-    return (
-      <div className="flex items-center gap-1.5 py-2">
-        <CheckCircle2 className="h-4 w-4 text-green-400" />
-        <span className="text-xs text-green-400">Ready</span>
-      </div>
-    );
-  }
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    setTimedOut(false);
+    try {
+      const updated = await retryAnalysis(itemId);
+      setStatus(updated.status);
+      setAttemptCount(updated.attempt_count);
+    } catch {
+      setTimedOut(true);
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   if (status === "failed") {
     return (
       <div className="flex flex-col gap-1 py-2">
         <div className="flex items-center gap-1.5">
           <XCircle className="h-4 w-4 shrink-0 text-red-400" />
-          <span className="text-xs text-red-400">Analysis failed after 3 attempts</span>
+          <span className="text-xs text-red-400">
+            Analysis failed after {attemptCount} attempt{attemptCount !== 1 ? "s" : ""}
+          </span>
         </div>
-        <p className="text-sm text-gray-400">Click the card to add details manually</p>
+        <p className="cursor-pointer text-xs text-gray-400">Click to add details manually</p>
       </div>
     );
   }
 
-  if (status === "analyzing") {
+  if (timedOut) {
     return (
-      <div className="flex flex-col gap-2 py-2">
+      <div className="flex flex-col gap-1.5 py-2">
         <div className="flex items-center gap-1.5">
-          <Sparkles className="h-4 w-4 animate-pulse text-blue-400" />
-          <span className="text-xs font-medium text-blue-300">AI is analyzing...</span>
+          <AlertTriangle className="h-4 w-4 shrink-0 text-orange-400" />
+          <span className="text-xs text-orange-400">Analysis timed out</span>
         </div>
-        <div className="h-1 overflow-hidden rounded-full bg-gray-700">
-          <div className="h-full w-1/2 translate-x-[-100%] animate-shimmer rounded-full bg-blue-500" />
-        </div>
+        <p className="text-xs text-gray-400">Click to add details manually or try re-uploading</p>
+        <button
+          onClick={(e) => { e.stopPropagation(); handleRetry(); }}
+          disabled={isRetrying}
+          className="mt-1 self-start rounded-lg bg-gray-700 px-2.5 py-1 text-xs text-gray-200 transition-colors hover:bg-gray-600 disabled:opacity-50"
+        >
+          {isRetrying ? "Retrying…" : "Retry analysis"}
+        </button>
       </div>
     );
   }
 
-  // pending
+  // Pending or analyzing
   return (
-    <div className="flex items-center gap-1.5 py-2">
-      <div className="h-3.5 w-3.5 animate-pulse rounded-full bg-gray-600" />
-      <span className="text-xs text-gray-500">Waiting to analyze...</span>
+    <div className="flex flex-col gap-0.5 py-2">
+      <div className="flex items-center gap-1.5">
+        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-indigo-400" />
+        <span className="text-xs text-indigo-300">{statusMessage(elapsed)}</span>
+      </div>
+      {attemptCount > 1 && (
+        <p className="text-[10px] text-gray-500">Attempt {attemptCount} of 3</p>
+      )}
     </div>
   );
 }
