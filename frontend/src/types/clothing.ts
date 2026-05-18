@@ -35,4 +35,6 @@ export interface User {
   email: string;
   name: string | null;
   avatar_url: string | null;
+  weather_lat: number | null;
+  weather_lon: number | null;
 }

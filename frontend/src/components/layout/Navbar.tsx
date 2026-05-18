@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { LayoutGrid, LogOut, Shirt, Sparkles } from "lucide-react";
+import { LayoutGrid, LogOut, Settings, Shirt, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
@@ -99,6 +99,14 @@ export function Navbar() {
                 </div>
               )}
               <div className="my-1 h-px bg-[var(--color-border)]" />
+              <Link
+                href="/settings"
+                onClick={() => setDropdownOpen(false)}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-300 transition-colors hover:bg-white/5 hover:text-white"
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Settings
+              </Link>
               <button
                 onClick={() => signOut({ callbackUrl: "/login" })}
                 className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-300 transition-colors hover:bg-white/5 hover:text-white"

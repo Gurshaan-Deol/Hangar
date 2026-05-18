@@ -5,16 +5,20 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 export default function HomePage() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
 
   useEffect(() => {
     if (status === "authenticated") {
-      router.replace("/wardrobe");
+      if (session?.syncError) {
+        router.replace("/login?error=sync_failed");
+      } else {
+        router.replace("/wardrobe");
+      }
     } else if (status === "unauthenticated") {
       router.replace("/login");
     }
-  }, [status, router]);
+  }, [status, session, router]);
 
   return (
     <div className="flex min-h-screen items-center justify-center">

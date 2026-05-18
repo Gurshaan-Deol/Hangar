@@ -1,6 +1,6 @@
 import axios, { type AxiosError } from "axios";
 import { signOut } from "next-auth/react";
-import type { ClothingItem, ClothingItemListResponse, ClothingItemStatus } from "@/types/clothing";
+import type { ClothingItem, ClothingItemListResponse, ClothingItemStatus, User } from "@/types/clothing";
 import type {
   WeatherData,
   RecommendationResponse,
@@ -108,6 +108,19 @@ export async function getRecommendations(
   if (occasion) body.occasion = occasion;
   if (customRequest) body.custom_request = customRequest;
   const { data } = await apiClient.post<RecommendationResponse>("/recommendations", body);
+  return data;
+}
+
+export async function getCurrentUser(): Promise<User> {
+  const { data } = await apiClient.get<User>("/auth/me");
+  return data;
+}
+
+export async function updateUserLocation(
+  weather_lat: number,
+  weather_lon: number,
+): Promise<User> {
+  const { data } = await apiClient.patch<User>("/auth/location", { weather_lat, weather_lon });
   return data;
 }
 

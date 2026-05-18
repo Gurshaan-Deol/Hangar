@@ -44,14 +44,24 @@ def _weather_dict(weather: WeatherData) -> dict:
     }
 
 
+def _resolve_location(user: User) -> tuple[float, float]:
+    """Return the user's saved location, or fall back to the server default."""
+    settings = get_settings()
+    if user.weather_lat is not None and user.weather_lon is not None:
+        logger.info("Using user location (%.4f, %.4f)", user.weather_lat, user.weather_lon)
+        return user.weather_lat, user.weather_lon
+    logger.info("Using default location (%.4f, %.4f)", settings.weather_lat, settings.weather_lon)
+    return settings.weather_lat, settings.weather_lon
+
+
 @router.get("/weather")
 async def current_weather(
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     redis: Redis = Depends(get_redis),
 ) -> dict:
-    """Return current weather conditions for the configured location."""
-    settings = get_settings()
-    weather = await get_current_weather(settings.weather_lat, settings.weather_lon, redis)
+    """Return current weather conditions for the user's configured location."""
+    lat, lon = _resolve_location(user)
+    weather = await get_current_weather(lat, lon, redis)
     return _weather_dict(weather)
 
 
@@ -91,8 +101,8 @@ async def get_recommendation(
     redis: Redis = Depends(get_redis),
 ) -> dict:
     """Generate a weather-appropriate outfit recommendation from the user's wardrobe."""
-    settings = get_settings()
-    weather = await get_current_weather(settings.weather_lat, settings.weather_lon, redis)
+    lat, lon = _resolve_location(user)
+    weather = await get_current_weather(lat, lon, redis)
 
     occasion = body.occasion or "casual"
     result = await get_outfit_recommendation(

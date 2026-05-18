@@ -1,7 +1,20 @@
 "use client";
 
+import { Suspense } from "react";
 import { signIn } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import { Github, Globe, Lock, Shirt } from "lucide-react";
+
+function SyncErrorBanner() {
+  const params = useSearchParams();
+  if (params.get("error") !== "sync_failed") return null;
+
+  return (
+    <div className="mb-5 rounded-xl border border-red-500/20 bg-red-950/50 p-3 text-sm text-red-300">
+      Sign in failed — could not connect to the backend. Make sure the API is running.
+    </div>
+  );
+}
 
 export default function LoginPage() {
   return (
@@ -49,6 +62,11 @@ export default function LoginPage() {
             <p className="mt-2 text-sm text-gray-400">Your AI-powered wardrobe</p>
           </div>
         </div>
+
+        {/* Sync error banner — reads query params, requires Suspense */}
+        <Suspense>
+          <SyncErrorBanner />
+        </Suspense>
 
         {/* Divider */}
         <div className="mb-6 flex items-center gap-3">

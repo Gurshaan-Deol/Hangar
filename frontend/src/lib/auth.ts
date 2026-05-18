@@ -12,6 +12,7 @@ declare module "next-auth" {
       name?: string | null;
       image?: string | null;
     };
+    syncError?: boolean;
   }
 }
 
@@ -74,7 +75,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token["providerId"] = account.providerAccountId;
 
         try {
-          const res = await fetch(`${BACKEND_URL}/api/v1/auth/sync`, {
+          const syncResponse = await fetch(`${BACKEND_URL}/api/v1/auth/sync`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -86,15 +87,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             }),
           });
 
-          if (res.ok) {
-            const dbUser = (await res.json()) as { id: string };
-            token["userId"] = dbUser.id;
-          } else {
-            console.error("[auth] Backend /auth/sync returned", res.status);
+          if (!syncResponse.ok) {
+            throw new Error(`Backend sync failed: ${syncResponse.status}`);
           }
-        } catch (err) {
-          // Don't block login if the backend is temporarily unreachable
-          console.error("[auth] Failed to sync user with backend:", err);
+
+          const dbUser = (await syncResponse.json()) as { id: string };
+          token["userId"] = dbUser.id;
+          token["provider"] = account.provider;
+          token["providerId"] = account.providerAccountId;
+        } catch (error) {
+          console.error("[auth] Failed to sync user with backend:", error);
+          token["syncError"] = true;
+          // Still return token — NextAuth requires it, but mark it so we can show a helpful error
         }
       }
 
@@ -105,6 +109,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         session.user.id = (token["userId"] as string) ?? "";
         session.user.email = (token.email as string) ?? "";
+      }
+      if (token["syncError"]) {
+        session.syncError = true;
       }
       return session;
     },

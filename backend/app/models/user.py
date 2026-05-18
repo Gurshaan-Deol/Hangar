@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, String, UniqueConstraint
+from sqlalchemy import DateTime, Float, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -30,6 +30,8 @@ class User(Base):
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     provider: Mapped[str] = mapped_column(String(50), nullable=False)
     provider_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    weather_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    weather_lon: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
