@@ -24,7 +24,7 @@
 ## Quick Start
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/hangar.git
+git clone https://github.com/Gurshaan-Deol/Hangar.git
 cd hangar
 cp .env.example .env
 ```
