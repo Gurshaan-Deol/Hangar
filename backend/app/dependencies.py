@@ -1,10 +1,11 @@
-"""FastAPI dependency injection: database session and authenticated current user."""
+"""FastAPI dependency injection: database session, Redis client, and authenticated current user."""
 
 import logging
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import ExpiredSignatureError, JWTError, jwt
+from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -67,9 +68,9 @@ async def get_current_user(
     return user
 
 
-async def get_arq_pool(request: Request):
-    """Return the arq Redis pool stored on app state at startup."""
-    return request.app.state.arq_pool
+async def get_redis(request: Request) -> Redis:
+    """Return the shared Redis/arq pool stored on app state at startup."""
+    return request.app.state.redis
 
 
-__all__ = ["get_db", "get_current_user", "get_arq_pool"]
+__all__ = ["get_db", "get_current_user", "get_redis"]

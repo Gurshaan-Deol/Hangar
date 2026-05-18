@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 from arq import create_pool
 from arq.connections import RedisSettings
@@ -14,11 +15,23 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
-app = FastAPI(title="Hangar API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Hangar API starting up")
+    # ArqRedis extends redis.asyncio.Redis — supports both enqueue_job and raw commands
+    pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+    app.state.redis = pool
+    yield
+    await app.state.redis.aclose()
+    logger.info("Hangar API shutting down")
+
+
+app = FastAPI(title="Hangar API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,16 +43,3 @@ app.include_router(clothing.router, prefix="/api/v1")
 app.include_router(recommendations.router, prefix="/api/v1")
 
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
-
-
-@app.on_event("startup")
-async def startup_event() -> None:
-    logger.info("Hangar API starting up")
-    app.state.arq_pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
-    logger.info("arq Redis pool connected")
-
-
-@app.on_event("shutdown")
-async def shutdown_event() -> None:
-    await app.state.arq_pool.close()
-    logger.info("arq Redis pool closed")

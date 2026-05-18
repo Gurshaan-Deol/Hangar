@@ -7,11 +7,12 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
+from redis.asyncio import Redis
 from sqlalchemy import delete as sql_delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.dependencies import get_arq_pool, get_current_user, get_db
+from app.dependencies import get_current_user, get_db, get_redis
 from app.models.clothing_item import ClothingItem
 from app.models.outfit import outfit_items as outfit_items_table
 from app.models.user import User
@@ -77,13 +78,20 @@ async def upload_clothing(
     image: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    arq_pool=Depends(get_arq_pool),
+    redis: Redis = Depends(get_redis),
 ) -> ClothingItem:
     """Upload a clothing photo, create a pending item, and enqueue AI analysis."""
     if image.content_type not in _ALLOWED_CONTENT_TYPES:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             detail="File type not allowed. Accepted: jpeg, png, webp",
+        )
+
+    suffix = Path(image.filename or "").suffix.lower()
+    if suffix not in _ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File type not allowed. Upload a JPG, PNG, or WebP image.",
         )
 
     contents = await image.read()
@@ -93,10 +101,6 @@ async def upload_clothing(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=f"File exceeds maximum size of {settings.max_upload_size_mb} MB",
         )
-
-    suffix = Path(image.filename or "image.jpg").suffix.lower()
-    if suffix not in _ALLOWED_EXTENSIONS:
-        suffix = "." + image.content_type.split("/")[1]
 
     item_id = uuid.uuid4()
     user_dir = Path(settings.upload_dir) / str(current_user.id)
@@ -126,11 +130,20 @@ async def upload_clothing(
     await db.refresh(item)
 
     try:
-        await arq_pool.enqueue_job("analyze_clothing_image", str(item.id))
-    except Exception as exc:
-        # Redis being down must not fail the upload — the item is already saved.
-        # The worker can be re-triggered manually or via a retry mechanism later.
-        logger.error("Failed to enqueue AI analysis job for item %s: %s", item.id, exc)
+        await redis.enqueue_job("analyze_clothing_image", str(item.id))
+    except Exception as e:
+        logger.error("Failed to enqueue analysis job for item %s: %s", item.id, e)
+        try:
+            if file_path.exists():
+                file_path.unlink()
+        except Exception:
+            pass
+        await db.delete(item)
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Upload service temporarily unavailable. Please try again.",
+        )
 
     return item
 
@@ -254,5 +267,10 @@ async def get_clothing_image(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Image file not found on disk"
         )
+
+    resolved = Path(item.image_path).resolve()
+    upload_dir = Path(settings.upload_dir).resolve()
+    if not str(resolved).startswith(str(upload_dir)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     return FileResponse(item.image_path)

@@ -6,9 +6,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 
 import httpx
-import redis.asyncio as aioredis
-
-from app.config import get_settings
+from redis.asyncio import Redis
 
 logger = logging.getLogger(__name__)
 
@@ -56,17 +54,16 @@ class WeatherData:
     fetched_at: datetime
 
 
-async def get_current_weather(lat: float, lon: float) -> WeatherData:
+async def get_current_weather(lat: float, lon: float, redis: Redis) -> WeatherData:
     """Return current weather for the given coordinates, cached in Redis for 30 minutes."""
-    settings = get_settings()
     cache_key = f"weather:{lat}:{lon}"
 
-    cached = await _read_cache(settings.redis_url, cache_key)
+    cached = await _read_from_redis(redis, cache_key)
     if cached is not None:
         return cached
 
     weather = await _fetch_from_api(lat, lon)
-    await _write_cache(settings.redis_url, cache_key, weather)
+    await _write_to_redis(redis, cache_key, weather)
     return weather
 
 
@@ -104,11 +101,9 @@ async def _fetch_from_api(lat: float, lon: float) -> WeatherData:
     )
 
 
-async def _read_cache(redis_url: str, key: str) -> WeatherData | None:
+async def _read_from_redis(redis: Redis, key: str) -> WeatherData | None:
     try:
-        client = aioredis.from_url(redis_url, decode_responses=True)
-        raw = await client.get(key)
-        await client.aclose()
+        raw = await redis.get(key)
     except Exception:
         logger.warning("Redis cache read failed; will fetch fresh weather data")
         return None
@@ -117,6 +112,7 @@ async def _read_cache(redis_url: str, key: str) -> WeatherData | None:
         return None
 
     try:
+        # json.loads handles both str and bytes
         data = json.loads(raw)
         return WeatherData(
             temperature=data["temperature"],
@@ -133,12 +129,10 @@ async def _read_cache(redis_url: str, key: str) -> WeatherData | None:
         return None
 
 
-async def _write_cache(redis_url: str, key: str, weather: WeatherData) -> None:
+async def _write_to_redis(redis: Redis, key: str, weather: WeatherData) -> None:
     try:
         payload = asdict(weather)
         payload["fetched_at"] = weather.fetched_at.isoformat()
-        client = aioredis.from_url(redis_url, decode_responses=True)
-        await client.setex(key, _CACHE_TTL_SECONDS, json.dumps(payload))
-        await client.aclose()
+        await redis.setex(key, _CACHE_TTL_SECONDS, json.dumps(payload))
     except Exception:
         logger.warning("Redis cache write failed; continuing without caching")

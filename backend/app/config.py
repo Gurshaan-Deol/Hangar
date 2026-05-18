@@ -1,5 +1,7 @@
 from functools import lru_cache
+from typing import Literal
 
+from pydantic import ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,8 +23,9 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     google_client_secret: str = ""
 
-    # AI provider
-    ai_provider: str = "openai"
+    # AI provider — order matters: ai_provider must be defined before ai_api_key
+    # so the api key validator can read it from info.data
+    ai_provider: Literal["openai", "google", "ollama"] = "ollama"
     ai_base_url: str = ""
     ai_api_key: str = ""
     ai_vision_model: str = ""
@@ -35,6 +38,32 @@ class Settings(BaseSettings):
     # Weather (Open-Meteo — no key required)
     weather_lat: float = 0.0
     weather_lon: float = 0.0
+
+    # CORS
+    allowed_origins: list[str] = ["http://localhost:3000"]
+    frontend_url: str = "http://localhost:3000"
+
+    @field_validator("database_url")
+    @classmethod
+    def database_url_must_be_set(cls, v: str) -> str:
+        if not v:
+            raise ValueError("DATABASE_URL is required")
+        return v
+
+    @field_validator("nextauth_secret")
+    @classmethod
+    def nextauth_secret_must_be_set(cls, v: str) -> str:
+        if not v or len(v) < 10:
+            raise ValueError("NEXTAUTH_SECRET must be at least 10 characters")
+        return v
+
+    @field_validator("ai_api_key")
+    @classmethod
+    def ai_api_key_must_be_set(cls, v: str, info: ValidationInfo) -> str:
+        provider = info.data.get("ai_provider")
+        if provider in ["openai", "google"] and (not v or v == "your-api-key-here"):
+            raise ValueError(f"AI_API_KEY is required when AI_PROVIDER is {provider}")
+        return v
 
 
 @lru_cache

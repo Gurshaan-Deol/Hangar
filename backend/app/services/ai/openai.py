@@ -9,10 +9,15 @@ import mimetypes
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import httpx
-
 from app.config import get_settings
 from app.services.ai.base import BaseAIProvider, ClothingAnalysis, extract_json_from_response
+from app.services.ai.http_client import call_openai_compatible_api
+from app.services.ai.prompts import (
+    CLOTHING_ANALYSIS_SYSTEM,
+    CLOTHING_ANALYSIS_USER,
+    DUPLICATE_CHECK_SYSTEM,
+    OUTFIT_RECOMMENDATION_SYSTEM,
+)
 
 if TYPE_CHECKING:
     from app.services.weather import WeatherData
@@ -32,24 +37,6 @@ def _split_tags(raw_tags: list[str]) -> list[str]:
     return result
 
 
-_ANALYZE_PROMPT = """\
-Analyze this clothing item and return a JSON object with exactly these fields:
-{
-  "name": "descriptive name of the item",
-  "category": "shirt, t-shirt, top, pants, jeans, shorts, dress, skirt, \
-blazer, suit, jacket, coat, sweater, cardigan, hoodie, \
-activewear, shoes, boots, heels, sneakers, sandals, \
-hat, bag, accessory, other",
-  "color": "primary color description",
-  "style": "one of: casual, smart-casual, formal, workwear, athletic, loungewear",
-  "season": ["array of applicable seasons from: spring, summer, fall, winter"],
-  "tags": ["beach", "vacation", "relaxed", "street-style"],
-  "confidence": 0.95
-}
-Each tag must be a single word or short hyphenated phrase — no commas inside a tag.
-Return only the JSON object, nothing else."""
-
-
 class OpenAIProvider(BaseAIProvider):
     """AI provider for any OpenAI-compatible API (OpenAI, Gemini, LiteLLM, etc.)."""
 
@@ -60,57 +47,35 @@ class OpenAIProvider(BaseAIProvider):
         self._vision_model = settings.ai_vision_model
         self._text_model = settings.ai_text_model
 
-    def _headers(self) -> dict:
-        headers = {"Content-Type": "application/json"}
-        if self._api_key and self._api_key != "not-needed":
-            headers["Authorization"] = f"Bearer {self._api_key}"
-        return headers
-
     async def analyze_clothing_image(self, image_path: str) -> ClothingAnalysis:
         """Read an image from disk, send it to the vision model, return structured metadata."""
         image_bytes = Path(image_path).read_bytes()
         image_b64 = base64.b64encode(image_bytes).decode()
-
         mime, _ = mimetypes.guess_type(image_path)
         mime = mime or "image/jpeg"
 
-        payload = {
-            "model": self._vision_model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a fashion expert AI. Analyze clothing images and extract "
-                        "structured data. Always respond with valid JSON only, no markdown, no explanation."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:{mime};base64,{image_b64}"},
-                        },
-                        {"type": "text", "text": _ANALYZE_PROMPT},
-                    ],
-                },
-            ],
-            "max_tokens": 512,
-        }
+        messages = [
+            {"role": "system", "content": CLOTHING_ANALYSIS_SYSTEM},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_b64}"}},
+                    {"type": "text", "text": CLOTHING_ANALYSIS_USER},
+                ],
+            },
+        ]
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{self._base_url}/chat/completions",
-                json=payload,
-                headers=self._headers(),
-            )
-            response.raise_for_status()
-
-        raw = response.json()["choices"][0]["message"]["content"]
+        raw = await call_openai_compatible_api(
+            base_url=self._base_url,
+            api_key=self._api_key,
+            model=self._vision_model,
+            messages=messages,
+            include_auth=True,
+            max_tokens=512,
+            timeout=60.0,
+        )
         data = extract_json_from_response(raw)
-
-        # right before building ClothingAnalysis:
-        logger.debug(f"Raw AI response fields: {list(data.keys())}")
+        logger.debug("Raw AI response fields: %s", list(data.keys()))
 
         return ClothingAnalysis(
             name=data.get("name", "Unknown Item"),
@@ -142,30 +107,18 @@ Return a JSON object with exactly:
 }}
 Return only the JSON object, nothing else."""
 
-        payload = {
-            "model": self._text_model or self._vision_model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a wardrobe assistant. Identify duplicate or near-duplicate "
-                        "clothing items. Always respond with valid JSON only, no markdown."
-                    ),
-                },
+        raw = await call_openai_compatible_api(
+            base_url=self._base_url,
+            api_key=self._api_key,
+            model=self._text_model or self._vision_model,
+            messages=[
+                {"role": "system", "content": DUPLICATE_CHECK_SYSTEM},
                 {"role": "user", "content": prompt},
             ],
-            "max_tokens": 256,
-        }
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{self._base_url}/chat/completions",
-                json=payload,
-                headers=self._headers(),
-            )
-            response.raise_for_status()
-
-        raw = response.json()["choices"][0]["message"]["content"]
+            include_auth=True,
+            max_tokens=256,
+            timeout=30.0,
+        )
         return extract_json_from_response(raw)
 
     async def generate_outfit_recommendation(
@@ -204,44 +157,33 @@ Return a JSON object with exactly:
 Return only the JSON object, nothing else.
 """
 
-        payload = {
-            "model": self._text_model or self._vision_model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are a personal stylist AI. Select clothing items that work well together for the given weather and occasion. Always respond with valid JSON only.",
-                },
+        raw = await call_openai_compatible_api(
+            base_url=self._base_url,
+            api_key=self._api_key,
+            model=self._text_model or self._vision_model,
+            messages=[
+                {"role": "system", "content": OUTFIT_RECOMMENDATION_SYSTEM},
                 {"role": "user", "content": user_prompt},
             ],
-            "max_tokens": 512,
-        }
-
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{self._base_url}/chat/completions",
-                json=payload,
-                headers=self._headers(),
-            )
-            response.raise_for_status()
-
-        raw = response.json()["choices"][0]["message"]["content"]
+            include_auth=True,
+            max_tokens=512,
+            timeout=60.0,
+        )
         return extract_json_from_response(raw)
 
     async def health_check(self) -> bool:
-        """Return True if the API endpoint is reachable."""
+        """Return True if the API endpoint is reachable and responding."""
         try:
-            payload = {
-                "model": self._text_model or self._vision_model,
-                "messages": [{"role": "user", "content": "ping"}],
-                "max_tokens": 1,
-            }
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(
-                    f"{self._base_url}/chat/completions",
-                    json=payload,
-                    headers=self._headers(),
-                )
-                return response.status_code < 500
+            await call_openai_compatible_api(
+                base_url=self._base_url,
+                api_key=self._api_key,
+                model=self._text_model or self._vision_model,
+                messages=[{"role": "user", "content": "ping"}],
+                include_auth=True,
+                max_tokens=1,
+                timeout=10.0,
+            )
+            return True
         except Exception:
             logger.exception("AI health check failed")
             return False

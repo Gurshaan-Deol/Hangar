@@ -5,13 +5,14 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from redis.asyncio import Redis
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_redis
 from app.models.outfit import Outfit
 from app.models.user import User
 from app.schemas.outfit import OutfitListResponse, OutfitResponse
@@ -46,10 +47,11 @@ def _weather_dict(weather: WeatherData) -> dict:
 @router.get("/weather")
 async def current_weather(
     _: User = Depends(get_current_user),
+    redis: Redis = Depends(get_redis),
 ) -> dict:
     """Return current weather conditions for the configured location."""
     settings = get_settings()
-    weather = await get_current_weather(settings.weather_lat, settings.weather_lon)
+    weather = await get_current_weather(settings.weather_lat, settings.weather_lon, redis)
     return _weather_dict(weather)
 
 
@@ -86,10 +88,11 @@ async def get_recommendation(
     body: RecommendationRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
 ) -> dict:
     """Generate a weather-appropriate outfit recommendation from the user's wardrobe."""
     settings = get_settings()
-    weather = await get_current_weather(settings.weather_lat, settings.weather_lon)
+    weather = await get_current_weather(settings.weather_lat, settings.weather_lon, redis)
 
     occasion = body.occasion or "casual"
     result = await get_outfit_recommendation(

@@ -88,14 +88,19 @@ async def analyze_with_retry(
 async def on_startup(ctx: dict) -> None:
     logger.info("Hangar worker starting up")
     provider = get_ai_provider()
-    healthy = await provider.health_check()
-    if healthy:
-        logger.info("AI provider health check passed: %s", type(provider).__name__)
-    else:
-        logger.warning(
-            "AI provider health check FAILED — analysis jobs may fail: %s",
-            type(provider).__name__,
-        )
+    try:
+        is_healthy = await asyncio.wait_for(provider.health_check(), timeout=10.0)
+        if is_healthy:
+            logger.info("AI provider (%s) is healthy", settings.ai_provider)
+        else:
+            logger.warning(
+                "AI provider (%s) health check returned False — jobs may fail",
+                settings.ai_provider,
+            )
+    except asyncio.TimeoutError:
+        logger.warning("AI provider health check timed out after 10s — worker will start anyway")
+    except Exception as e:
+        logger.warning("AI provider health check failed: %s — worker will start anyway", e)
 
 
 async def on_shutdown(ctx: dict) -> None:
