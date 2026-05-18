@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Loader2, Save } from "lucide-react";
+import { CheckCircle2, Loader2, Save } from "lucide-react";
 import { cn, toTitleCase } from "@/lib/utils";
 import type { ClothingItem } from "@/types/clothing";
 import { TagEditor } from "./TagEditor";
@@ -72,6 +72,7 @@ export function ItemEditForm({ item, onSave, onCancel }: ItemEditFormProps) {
   const [fields, setFields] = useState<EditFields>(original);
   const [errors, setErrors] = useState<Partial<Record<keyof EditFields, string>>>({});
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   function set<K extends keyof EditFields>(key: K, val: EditFields[K]) {
@@ -118,9 +119,12 @@ export function ItemEditForm({ item, onSave, onCancel }: ItemEditFormProps) {
         season: fields.season,
         tags: fields.tags,
       });
+      setSaving(false);
+      setSaved(true);
+      // Close edit mode after showing the success state for 1.5 seconds
+      setTimeout(onCancel, 1500);
     } catch {
       setSaveError("Failed to save — please try again");
-    } finally {
       setSaving(false);
     }
   }
@@ -231,19 +235,27 @@ export function ItemEditForm({ item, onSave, onCancel }: ItemEditFormProps) {
         <button
           type="button"
           onClick={handleSave}
-          disabled={!hasChanged || saving}
+          disabled={!hasChanged || saving || saved}
           className={cn(
-            "flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors",
-            "hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50",
+            "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-white transition-colors",
+            saved
+              ? "cursor-default bg-green-600"
+              : "bg-indigo-600 hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50",
           )}
         >
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          Save changes
+          {saving ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : saved ? (
+            <CheckCircle2 className="h-3.5 w-3.5" />
+          ) : (
+            <Save className="h-3.5 w-3.5" />
+          )}
+          {saved ? "Saved!" : "Save changes"}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          disabled={saving}
+          disabled={saving || saved}
           className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-sm text-gray-400 transition-colors hover:text-white disabled:opacity-50"
         >
           Cancel

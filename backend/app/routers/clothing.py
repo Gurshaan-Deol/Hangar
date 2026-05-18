@@ -16,6 +16,7 @@ from app.models.clothing_item import ClothingItem
 from app.models.outfit import outfit_items as outfit_items_table
 from app.models.user import User
 from app.schemas.clothing_item import (
+    ClothingItemDetailsUpdate,
     ClothingItemListResponse,
     ClothingItemResponse,
     ClothingItemStatusResponse,
@@ -167,6 +168,31 @@ async def update_clothing_item(
     updates = body.model_dump(exclude_unset=True)
     for field, value in updates.items():
         setattr(item, field, value)
+
+    await db.commit()
+    await db.refresh(item)
+    return item
+
+
+@router.patch("/{item_id}/details", response_model=ClothingItemResponse)
+async def update_clothing_details(
+    item_id: uuid.UUID,
+    body: ClothingItemDetailsUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ClothingItem:
+    """Manually set clothing item details and force status to 'ready'.
+
+    This is the manual fallback for when AI analysis fails or produces bad results.
+    Unlike the general PATCH endpoint, this always marks the item as ready.
+    """
+    item = await _get_owned_item(item_id, current_user, db)
+
+    updates = body.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(item, field, value)
+
+    item.status = "ready"
 
     await db.commit()
     await db.refresh(item)

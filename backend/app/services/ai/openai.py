@@ -12,29 +12,12 @@ from typing import TYPE_CHECKING
 import httpx
 
 from app.config import get_settings
-from app.services.ai.base import BaseAIProvider, ClothingAnalysis
+from app.services.ai.base import BaseAIProvider, ClothingAnalysis, extract_json_from_response
 
 if TYPE_CHECKING:
     from app.services.weather import WeatherData
 
-import logging
 logger = logging.getLogger(__name__)
-
-
-def _parse_json_response(raw: str) -> dict:
-    """Parse a JSON response from the AI, handling markdown fences and escaped underscores."""
-    text = raw.strip()
-    # Strip markdown code fences (```json ... ``` or ``` ... ```)
-    if text.startswith("```"):
-        lines = text.splitlines()
-        text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
-    # Some models escape underscores in JSON keys (markdown artifact)
-    text = text.replace(r"\_", "_")
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        logger.error("AI returned non-JSON response: %s", raw)
-        raise ValueError(f"AI response was not valid JSON: {raw[:200]}")
 
 
 def _split_tags(raw_tags: list[str]) -> list[str]:
@@ -124,7 +107,7 @@ class OpenAIProvider(BaseAIProvider):
             response.raise_for_status()
 
         raw = response.json()["choices"][0]["message"]["content"]
-        data = _parse_json_response(raw)
+        data = extract_json_from_response(raw)
 
         # right before building ClothingAnalysis:
         logger.debug(f"Raw AI response fields: {list(data.keys())}")
@@ -183,7 +166,7 @@ Return only the JSON object, nothing else."""
             response.raise_for_status()
 
         raw = response.json()["choices"][0]["message"]["content"]
-        return _parse_json_response(raw)
+        return extract_json_from_response(raw)
 
     async def generate_outfit_recommendation(
         self,
@@ -242,7 +225,7 @@ Return only the JSON object, nothing else.
             response.raise_for_status()
 
         raw = response.json()["choices"][0]["message"]["content"]
-        return _parse_json_response(raw)
+        return extract_json_from_response(raw)
 
     async def health_check(self) -> bool:
         """Return True if the API endpoint is reachable."""

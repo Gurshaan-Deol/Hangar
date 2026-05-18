@@ -87,6 +87,14 @@ export async function updateClothingItem(
   return data;
 }
 
+export async function updateClothingDetails(
+  itemId: string,
+  data: Partial<Pick<ClothingItem, "name" | "category" | "color" | "style" | "season" | "tags" | "notes">>,
+): Promise<ClothingItem> {
+  const { data: updated } = await apiClient.patch<ClothingItem>(`/clothing/${itemId}/details`, data);
+  return updated;
+}
+
 export async function getWeather(): Promise<WeatherData> {
   const { data } = await apiClient.get<WeatherData>("/recommendations/weather");
   return data;

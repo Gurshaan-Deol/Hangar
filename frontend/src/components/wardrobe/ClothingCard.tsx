@@ -93,6 +93,14 @@ export function ClothingCard({ item, onClick, onAnalysisComplete, onDelete }: Cl
           </div>
         )}
 
+        {/* Failed state overlay */}
+        {item.status === "failed" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-950/60">
+            <span className="text-xs text-red-400">Analysis failed</span>
+            <span className="text-xs text-gray-400">Click to edit</span>
+          </div>
+        )}
+
         {/* Bottom gradient with item details */}
         <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/80 to-transparent" />
 

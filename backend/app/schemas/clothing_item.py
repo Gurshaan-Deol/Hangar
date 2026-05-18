@@ -32,6 +32,21 @@ class ClothingItemUpdate(BaseModel):
     notes: str | None = None
 
 
+class ClothingItemDetailsUpdate(BaseModel):
+    """Manual override schema — same fields as ClothingItemUpdate, but the endpoint
+    always forces status to 'ready' regardless of the item's current status."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    name: str | None = None
+    category: str | None = None
+    color: str | None = None
+    style: str | None = None
+    season: list[str] | None = None
+    tags: list[str] | None = None
+    notes: str | None = None
+
+
 class ClothingItemResponse(ClothingItemBase):
     id: UUID
     user_id: UUID

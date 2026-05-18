@@ -2,10 +2,67 @@
 
 from __future__ import annotations
 
+import json
+import logging
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
+
+
+def extract_json_from_response(text: str) -> dict:
+    """Extract and parse JSON from an AI response that may include prose or markdown.
+
+    Attempts in order:
+    1. Direct json.loads on the stripped text
+    2. Content inside a ```json ... ``` fence
+    3. Content inside a ``` ... ``` fence (no language tag)
+    4. Substring from first '{' to last '}'
+
+    Each candidate also has escaped underscores normalised before parsing.
+    Raises ValueError (with the original text) if all attempts fail.
+    """
+    def _try_parse(candidate: str) -> dict | None:
+        cleaned = candidate.replace(r"\_", "_").strip()
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            return None
+
+    stripped = text.strip()
+
+    # 1. Direct parse
+    result = _try_parse(stripped)
+    if result is not None:
+        return result
+
+    # 2. ```json ... ``` block
+    json_fence = re.search(r"```json\s*([\s\S]*?)\s*```", stripped)
+    if json_fence:
+        result = _try_parse(json_fence.group(1))
+        if result is not None:
+            return result
+
+    # 3. ``` ... ``` block (no language tag)
+    fence = re.search(r"```\s*([\s\S]*?)\s*```", stripped)
+    if fence:
+        result = _try_parse(fence.group(1))
+        if result is not None:
+            return result
+
+    # 4. First '{' to last '}'
+    first = stripped.find("{")
+    last = stripped.rfind("}")
+    if first != -1 and last != -1 and last > first:
+        result = _try_parse(stripped[first : last + 1])
+        if result is not None:
+            return result
+
+    logger.error("Could not extract JSON from AI response: %s", text[:500])
+    raise ValueError(f"Could not extract JSON from AI response: {text[:500]}")
 
 
 @dataclass

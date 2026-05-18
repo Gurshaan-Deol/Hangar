@@ -71,9 +71,9 @@ export function AnalysisStatus({ itemId, initialStatus, onComplete }: AnalysisSt
       <div className="flex flex-col gap-1 py-2">
         <div className="flex items-center gap-1.5">
           <XCircle className="h-4 w-4 shrink-0 text-red-400" />
-          <span className="text-xs text-red-400">Analysis failed</span>
+          <span className="text-xs text-red-400">Analysis failed after 3 attempts</span>
         </div>
-        <p className="text-[10px] text-gray-500">You can edit details manually.</p>
+        <p className="text-sm text-gray-400">Click the card to add details manually</p>
       </div>
     );
   }

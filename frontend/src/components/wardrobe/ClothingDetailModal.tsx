@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { AlertTriangle, Pencil, Shirt, X } from "lucide-react";
 import { cn, toTitleCase } from "@/lib/utils";
-import { deleteClothingItem, dismissDuplicate, getClothingItem, updateClothingItem } from "@/lib/api";
+import { deleteClothingItem, dismissDuplicate, getClothingItem, updateClothingDetails } from "@/lib/api";
 import type { ClothingItem } from "@/types/clothing";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { ItemEditForm } from "@/components/clothing/ItemEditForm";
@@ -92,9 +92,9 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
   };
 
   const handleSave = async (updates: Partial<ClothingItem>) => {
-    const updated = await updateClothingItem(item.id, updates);
+    const updated = await updateClothingDetails(item.id, updates);
     onUpdate(updated);
-    setIsEditing(false);
+    // setIsEditing(false) is called by ItemEditForm via onCancel after the 1.5s success state
   };
 
   return (

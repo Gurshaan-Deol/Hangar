@@ -4,22 +4,85 @@ import asyncio
 import dataclasses
 import json
 import logging
+import os
 import uuid
 from pathlib import Path
 
-import httpx
+from PIL import Image, ImageEnhance, ImageFilter, ImageStat
 from arq.connections import RedisSettings
 from sqlalchemy import select
 
 from app.config import get_settings
 from app.database import AsyncSessionLocal
 from app.models.clothing_item import ClothingItem
-from app.services.ai.base import get_ai_provider
+from app.services.ai.base import BaseAIProvider, ClothingAnalysis, get_ai_provider
 from app.services.background_removal import remove_background
 
 logging.basicConfig(level=logging.INFO, force=True)
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+
+def preprocess_image(image_path: str) -> str:
+    """Preprocess a clothing image before AI analysis.
+
+    - Converts to RGB (strips alpha channel)
+    - Resizes so the longest dimension is at most 1024px, preserving aspect ratio
+    - Applies a sharpening filter
+    - Boosts brightness by 1.3× when the mean pixel value is below 80
+
+    Saves the result as a sibling file with a ``_processed.jpg`` suffix and
+    returns its path.  The caller is responsible for deleting the file when done.
+    """
+    img = Image.open(image_path).convert("RGB")
+
+    w, h = img.size
+    max_dim = 1024
+    if max(w, h) > max_dim:
+        scale = max_dim / max(w, h)
+        img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+
+    img = img.filter(ImageFilter.SHARPEN)
+
+    stat = ImageStat.Stat(img)
+    mean_brightness = sum(stat.mean) / len(stat.mean)
+    if mean_brightness < 80:
+        img = ImageEnhance.Brightness(img).enhance(1.3)
+
+    processed_path = str(Path(image_path).with_suffix("")) + "_processed.jpg"
+    img.save(processed_path, "JPEG", quality=95)
+    return processed_path
+
+
+async def analyze_with_retry(
+    provider: BaseAIProvider,
+    image_path: str,
+    max_attempts: int = 3,
+) -> ClothingAnalysis:
+    """Run AI clothing analysis with automatic retries on any failure.
+
+    Sleeps 2 seconds between attempts.  Logs a warning before the final retry
+    to indicate the model is struggling.
+    """
+    for attempt in range(1, max_attempts + 1):
+        logger.info("Analysis attempt %d/%d for %s", attempt, max_attempts, image_path)
+        try:
+            return await provider.analyze_clothing_image(image_path)
+        except Exception as exc:
+            logger.error(
+                "Analysis attempt %d/%d failed for %s: %s",
+                attempt, max_attempts, image_path, exc,
+            )
+            if attempt == max_attempts:
+                raise
+            if attempt == 2:
+                logger.warning(
+                    "Model is struggling with item at %s — retrying one more time", image_path
+                )
+            await asyncio.sleep(2)
+
+    # Unreachable, but satisfies type checkers.
+    raise RuntimeError("analyze_with_retry: exhausted attempts without raising")
 
 
 async def on_startup(ctx: dict) -> None:
@@ -45,9 +108,11 @@ async def analyze_clothing_image(ctx: dict, item_id: str) -> None:
     Flow:
     1. Load ClothingItem by item_id from the database
     2. Set status="analyzing" and commit
-    3. Call the configured AI provider's analyze_clothing_image()
-    4. Persist the returned ClothingAnalysis fields and set status="ready"
-    5. On any error: set status="failed", store the traceback, re-raise
+    3. Remove background (rembg)
+    4. Preprocess image (resize, sharpen, brightness)
+    5. Call the configured AI provider via analyze_with_retry (up to 3 attempts)
+    6. Persist the returned ClothingAnalysis fields and set status="ready"
+    7. On any error: set status="failed", store the traceback, re-raise
     """
     item_uuid = uuid.UUID(item_id)
 
@@ -72,22 +137,13 @@ async def analyze_clothing_image(ctx: dict, item_id: str) -> None:
                 await db.commit()
 
             provider = get_ai_provider()
-            _retry_delays = [10, 30, 60]
-            analysis = None
-            for attempt, delay in enumerate([0] + _retry_delays, start=1):
-                if delay:
-                    logger.warning(
-                        "Item %s: rate-limited by AI provider, retrying in %ds (attempt %d/%d)",
-                        item_id, delay, attempt, len(_retry_delays) + 1,
-                    )
-                    await asyncio.sleep(delay)
-                try:
-                    analysis = await provider.analyze_clothing_image(cleaned_path)
-                    break
-                except httpx.HTTPStatusError as exc:
-                    if exc.response.status_code == 429 and attempt <= len(_retry_delays):
-                        continue
-                    raise
+
+            processed_path = await asyncio.to_thread(preprocess_image, cleaned_path)
+            try:
+                analysis = await analyze_with_retry(provider, processed_path)
+            finally:
+                if processed_path != cleaned_path and os.path.exists(processed_path):
+                    os.unlink(processed_path)
 
             item.name = analysis.name
             item.category = analysis.category
@@ -176,7 +232,9 @@ class WorkerSettings:
     functions = [analyze_clothing_image]
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     max_jobs = 10
-    job_timeout = 300  # up to 100s of retry sleep + AI call time
+    job_timeout = 300
     keep_result = 3600
     on_startup = on_startup
     on_shutdown = on_shutdown
+    retry_jobs = True
+    max_tries = 2
