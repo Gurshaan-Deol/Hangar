@@ -55,7 +55,9 @@ async def get_me(
 
 
 @router.patch("/location", response_model=UserResponse)
+@limiter.limit("30/minute")
 async def update_location(
+    request: Request,
     body: UserUpdateLocation,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),

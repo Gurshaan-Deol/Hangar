@@ -33,6 +33,7 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [duplicateItem, setDuplicateItem] = useState<ClothingItem | null>(null);
 
   useEffect(() => {
@@ -64,12 +65,15 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
   const badge = STATUS_BADGE[item.status];
   const showDuplicateBanner = item.duplicate_of && !item.dismissed_duplicate;
 
-  const handleDeleteConfirm = async () => {
+  const handleDelete = async () => {
     setIsDeleting(true);
     try {
       await deleteClothingItem(item.id);
       onDelete(item.id);
       onClose();
+    } catch (error) {
+      console.error("Failed to delete item:", error);
+      setDeleteError("Failed to delete item. Please try again.");
     } finally {
       setIsDeleting(false);
     }
@@ -79,17 +83,6 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
     setIsDismissing(true);
     try { onUpdate(await dismissDuplicate(item.id)); }
     finally { setIsDismissing(false); }
-  };
-
-  const handleDeleteDuplicate = async () => {
-    setIsDeleting(true);
-    try {
-      await deleteClothingItem(item.id);
-      onDelete(item.id);
-      onClose();
-    } finally {
-      setIsDeleting(false);
-    }
   };
 
   const handleSave = async (updates: Partial<ClothingItem>) => {
@@ -109,7 +102,7 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
       confirmLabel="Delete"
       confirmClassName="bg-red-600 hover:bg-red-700 text-white"
       isConfirming={isDeleting}
-      onConfirm={handleDeleteConfirm}
+      onConfirm={handleDelete}
     />
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
@@ -203,7 +196,7 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
                         Keep both
                       </button>
                       <button
-                        onClick={handleDeleteDuplicate}
+                        onClick={handleDelete}
                         disabled={isDismissing || isDeleting}
                         className="flex items-center gap-1.5 rounded-xl bg-red-600/80 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-50"
                       >
@@ -312,6 +305,9 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
                 )}
 
                 {/* Bottom actions */}
+                {deleteError && (
+                  <p className="mt-4 text-xs text-red-400">{deleteError}</p>
+                )}
                 <div className="mt-auto flex items-center justify-between pt-6">
                   <button
                     onClick={() => setDeleteDialogOpen(true)}

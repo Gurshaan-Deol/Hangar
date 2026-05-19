@@ -52,6 +52,8 @@ class WeatherData:
     is_daytime: bool
     location: str
     fetched_at: datetime
+    temp_max: float
+    temp_min: float
 
 
 async def get_current_weather(lat: float, lon: float, redis: Redis) -> WeatherData:
@@ -72,7 +74,9 @@ async def _fetch_from_api(lat: float, lon: float) -> WeatherData:
         "latitude": lat,
         "longitude": lon,
         "current": "temperature_2m,apparent_temperature,weathercode,relativehumidity_2m,windspeed_10m,is_day",
+        "daily": "temperature_2m_max,temperature_2m_min",
         "wind_speed_unit": "kmh",
+        "timezone": "auto",
     }
 
     async with httpx.AsyncClient(timeout=10.0) as client:
@@ -86,8 +90,11 @@ async def _fetch_from_api(lat: float, lon: float) -> WeatherData:
         except httpx.HTTPError as exc:
             raise RuntimeError(f"Open-Meteo request failed: {exc}") from exc
 
-    current = response.json()["current"]
+    response_data = response.json()
+    current = response_data["current"]
     weather_code = int(current["weathercode"])
+    temp_max = float(response_data["daily"]["temperature_2m_max"][0])
+    temp_min = float(response_data["daily"]["temperature_2m_min"][0])
 
     return WeatherData(
         temperature=float(current["temperature_2m"]),
@@ -98,6 +105,8 @@ async def _fetch_from_api(lat: float, lon: float) -> WeatherData:
         is_daytime=bool(current["is_day"]),
         location=f"{lat},{lon}",
         fetched_at=datetime.now(timezone.utc),
+        temp_max=temp_max,
+        temp_min=temp_min,
     )
 
 
@@ -123,6 +132,8 @@ async def _read_from_redis(redis: Redis, key: str) -> WeatherData | None:
             is_daytime=data["is_daytime"],
             location=data["location"],
             fetched_at=datetime.fromisoformat(data["fetched_at"]),
+            temp_max=float(data["temp_max"]),
+            temp_min=float(data["temp_min"]),
         )
     except Exception:
         logger.warning("Corrupt weather cache entry; fetching fresh data")

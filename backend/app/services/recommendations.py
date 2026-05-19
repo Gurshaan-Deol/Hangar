@@ -139,8 +139,8 @@ async def get_outfit_recommendation(
     outfit = Outfit(
         user_id=user.id,
         occasion=returned_occasion,
-        weather_temp_min=weather.temperature - 2,
-        weather_temp_max=weather.temperature + 2,
+        weather_temp_min=weather.temp_min,
+        weather_temp_max=weather.temp_max,
         ai_reasoning=reasoning,
         items=list(selected_items),
     )

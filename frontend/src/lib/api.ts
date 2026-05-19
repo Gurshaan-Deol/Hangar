@@ -9,8 +9,7 @@ import type {
 } from "@/types/recommendations";
 
 export class ApiError extends Error {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public detail?: any;
+  public detail?: string | Record<string, unknown>;
 
   constructor(
     public readonly status: number,
@@ -47,12 +46,22 @@ apiClient.interceptors.response.use(
       return Promise.reject(new ApiError(401, "Session expired. Please sign in again."));
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rawDetail: any = error.response?.data?.detail;
-    const message: string =
-      typeof rawDetail === "string"
-        ? rawDetail
-        : (rawDetail?.message ?? "An unexpected error occurred. Please try again.");
+    const rawDetail: unknown = error.response?.data?.detail;
+    let message: string;
+    if (typeof rawDetail === "string") {
+      message = rawDetail;
+    } else if (typeof rawDetail === "object" && rawDetail !== null) {
+      const d = rawDetail as Record<string, unknown>;
+      if (typeof d.message === "string") {
+        message = d.message;
+      } else if (typeof d.msg === "string") {
+        message = d.msg;
+      } else {
+        message = "An unexpected error occurred. Please try again.";
+      }
+    } else {
+      message = "An unexpected error occurred. Please try again.";
+    }
 
     const apiErr = new ApiError(httpStatus ?? 500, message);
     apiErr.detail = rawDetail;
@@ -135,8 +144,16 @@ export async function getRecommendations(
     const { data } = await apiClient.post<RecommendationResponse>("/recommendations", body);
     return data;
   } catch (err) {
-    if (err instanceof ApiError && err.status === 400 && err.detail?.code === "not_enough_items") {
-      throw new NotEnoughItemsError(err.detail.current_count ?? 0, err.detail.items_needed ?? 3);
+    if (err instanceof ApiError && err.status === 400) {
+      const d = typeof err.detail === "object" && err.detail !== null
+        ? err.detail as Record<string, unknown>
+        : null;
+      if (d?.code === "not_enough_items") {
+        throw new NotEnoughItemsError(
+          typeof d.current_count === "number" ? d.current_count : 0,
+          typeof d.items_needed === "number" ? d.items_needed : 3,
+        );
+      }
     }
     throw err;
   }

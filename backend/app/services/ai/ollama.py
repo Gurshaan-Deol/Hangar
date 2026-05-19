@@ -129,7 +129,7 @@ Return only the JSON object, nothing else."""
 
         user_prompt = f"""
 {outfit_goal}
-Current weather: {weather.temperature}°C, feels like {weather.feels_like}°C, {weather.condition}, humidity {weather.humidity}%
+Current weather: {weather.temperature}°C (today's range: {weather.temp_min}°C – {weather.temp_max}°C), feels like {weather.feels_like}°C, {weather.condition}, humidity {weather.humidity}%
 
 Available clothing items:
 {json.dumps(items, indent=2)}

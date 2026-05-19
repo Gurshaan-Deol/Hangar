@@ -1,5 +1,7 @@
 """Shared async HTTP client for OpenAI-compatible chat completion APIs."""
 
+import json
+
 import httpx
 
 
@@ -43,4 +45,12 @@ async def call_openai_compatible_api(
         except httpx.HTTPError as exc:
             raise RuntimeError(f"API request failed: {exc}") from exc
 
-    return response.json()["choices"][0]["message"]["content"]
+    try:
+        data = response.json()
+        content = data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError) as e:
+        raise RuntimeError(
+            f"Unexpected response shape from AI provider. "
+            f"Expected choices[0].message.content, got: {json.dumps(data)[:200]}"
+        ) from e
+    return content

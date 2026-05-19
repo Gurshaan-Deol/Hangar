@@ -250,7 +250,8 @@ async def retry_analysis(
         )
 
     item.status = "pending"
-    item.attempt_count = 0
+    # Do not reset attempt_count — it tracks cumulative attempts across all retries
+    # so we can detect permanently failing items
     await db.commit()
     await db.refresh(item)
 

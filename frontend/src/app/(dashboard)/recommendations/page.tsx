@@ -83,7 +83,7 @@ export default function RecommendationsPage() {
     staleTime: 1000 * 60 * 5,
   });
 
-  const { mutate: generate, isPending, error: genError } = useMutation({
+  const { mutate: generate, isPending } = useMutation({
     mutationFn: () => getRecommendations(occasion, customRequest || undefined),
     onSuccess: (data) => {
       setNotEnough(null);
@@ -95,6 +95,11 @@ export default function RecommendationsPage() {
         setNotEnough({ currentCount: err.currentCount, itemsNeeded: err.itemsNeeded });
       } else {
         setNotEnough(null);
+        setValidationError(
+          err instanceof Error
+            ? err.message
+            : "Something went wrong generating your outfit. Please try again."
+        );
       }
     },
   });
@@ -113,6 +118,7 @@ export default function RecommendationsPage() {
   }
 
   function handleGenerate() {
+    setValidationError(null);
     if (!occasion && !customRequest.trim()) {
       setValidationError("Please select an occasion or describe what you're looking for");
       return;
@@ -173,9 +179,6 @@ export default function RecommendationsPage() {
               </span>
             </div>
 
-            {validationError && (
-              <p className="text-sm text-red-400">{validationError}</p>
-            )}
           </div>
 
           {/* Generate button */}
@@ -183,7 +186,7 @@ export default function RecommendationsPage() {
             onClick={handleGenerate}
             disabled={isPending || weatherLoading}
             className={cn(
-              "mb-8 flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-sm font-semibold transition-all duration-200",
+              "mb-4 flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-sm font-semibold transition-all duration-200",
               isPending || weatherLoading
                 ? "cursor-not-allowed bg-gray-800 text-gray-500"
                 : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-500 hover:to-purple-500 active:scale-[0.98]",
@@ -202,23 +205,18 @@ export default function RecommendationsPage() {
             )}
           </button>
 
+          {validationError && (
+            <div className="mb-6 rounded-xl bg-red-950/30 border border-red-500/20 p-4 text-red-300 text-sm">
+              {validationError}
+            </div>
+          )}
+
           {/* Not enough items — rich empty state */}
           {notEnough && (
             <NotEnoughItemsCard
               currentCount={notEnough.currentCount}
               itemsNeeded={notEnough.itemsNeeded}
             />
-          )}
-
-          {/* Generic generation error */}
-          {genError && !notEnough && (
-            <div className="mb-6">
-              <ErrorMessage
-                title="Couldn't generate outfit"
-                message={genError instanceof Error ? genError.message : "Something went wrong."}
-                onRetry={handleGenerate}
-              />
-            </div>
           )}
 
           {/* Outfit result */}

@@ -171,7 +171,7 @@ async def analyze_clothing_image(ctx: dict, item_id: str) -> None:
                     ClothingItem.status == "ready",
                     ClothingItem.id != item_uuid,
                     ClothingItem.category == analysis.category,
-                )
+                ).limit(5)
             )
             existing_items = existing_result.scalars().all()
 
@@ -184,7 +184,7 @@ async def analyze_clothing_image(ctx: dict, item_id: str) -> None:
                         "color": e.color,
                         "tags": e.tags or [],
                     }
-                    for e in existing_items[:5]
+                    for e in existing_items
                 ]
                 new_item_data = {
                     "name": analysis.name,

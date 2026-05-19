@@ -67,9 +67,7 @@ export function OutfitDisplay({ outfit, isLoading }: OutfitDisplayProps) {
           <div key={item.id} className="w-36 shrink-0">
             <ClothingCard
               item={item as ClothingItem}
-              onClick={() => {}}
-              onAnalysisComplete={() => {}}
-              onDelete={() => {}}
+              readOnly={true}
             />
           </div>
         ))}
