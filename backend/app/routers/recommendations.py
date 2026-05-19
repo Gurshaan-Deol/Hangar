@@ -15,7 +15,7 @@ from app.database import get_db
 from app.dependencies import get_current_user, get_redis
 from app.models.outfit import Outfit
 from app.models.user import User
-from app.schemas.outfit import OutfitListResponse, OutfitResponse
+from app.schemas.outfit import OutfitListResponse, OutfitResponse, OutfitUpdate
 from app.services.recommendations import get_outfit_recommendation
 from app.services.weather import WeatherData, get_current_weather
 
@@ -55,6 +55,19 @@ def _resolve_location(user: User) -> tuple[float, float]:
     return settings.weather_lat, settings.weather_lon
 
 
+async def _get_owned_outfit(outfit_id: str, user: User, db: AsyncSession) -> Outfit:
+    """Fetch an outfit by ID, verifying it belongs to the current user."""
+    result = await db.execute(
+        select(Outfit)
+        .where(Outfit.id == outfit_id, Outfit.user_id == user.id)
+        .options(selectinload(Outfit.items))
+    )
+    outfit = result.scalar_one_or_none()
+    if outfit is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Outfit not found")
+    return outfit
+
+
 @router.get("/weather")
 async def current_weather(
     user: User = Depends(get_current_user),
@@ -69,7 +82,7 @@ async def current_weather(
 @router.get("/history", response_model=OutfitListResponse)
 async def recommendation_history(
     page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=100),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> OutfitListResponse:
@@ -127,3 +140,53 @@ async def get_recommendation(
         "outfit": outfit_response.model_dump(),
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@router.patch("/{outfit_id}", response_model=OutfitResponse)
+async def update_outfit(
+    outfit_id: str,
+    body: OutfitUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> OutfitResponse:
+    """Update rating or favourite status for an outfit."""
+    outfit = await _get_owned_outfit(outfit_id, user, db)
+
+    if body.rating is not None:
+        outfit.rating = body.rating
+    if body.is_favourite is not None:
+        outfit.is_favourite = body.is_favourite
+
+    await db.commit()
+    await db.refresh(outfit)
+    return OutfitResponse.model_validate(outfit)
+
+
+@router.post("/{outfit_id}/wear", response_model=OutfitResponse)
+async def mark_outfit_worn(
+    outfit_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> OutfitResponse:
+    """Log that the user wore this outfit today."""
+    outfit = await _get_owned_outfit(outfit_id, user, db)
+
+    outfit.worn_at = datetime.now(timezone.utc)
+    outfit.wear_count = (outfit.wear_count or 0) + 1
+
+    await db.commit()
+    await db.refresh(outfit)
+    return OutfitResponse.model_validate(outfit)
+
+
+@router.delete("/{outfit_id}")
+async def delete_outfit(
+    outfit_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Delete an outfit from the user's history."""
+    outfit = await _get_owned_outfit(outfit_id, user, db)
+    await db.delete(outfit)
+    await db.commit()
+    return {"message": "Outfit deleted"}

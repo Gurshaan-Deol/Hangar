@@ -64,7 +64,7 @@ apiClient.interceptors.response.use(
     }
 
     const apiErr = new ApiError(httpStatus ?? 500, message);
-    apiErr.detail = rawDetail;
+    apiErr.detail = rawDetail as string | Record<string, unknown> | undefined;
     return Promise.reject(apiErr);
   },
 );
@@ -180,6 +180,40 @@ export async function getRecommendationHistory(
     params: { page, limit },
   });
   return data;
+}
+
+export async function getOutfitHistory(
+  page = 1,
+  limit = 20,
+): Promise<OutfitListResponse> {
+  const { data } = await apiClient.get<OutfitListResponse>("/recommendations/history", {
+    params: { page, limit },
+  });
+  return data;
+}
+
+export async function updateOutfit(
+  id: string,
+  data: { rating?: number; is_favourite?: boolean },
+): Promise<import("@/types/recommendations").Outfit> {
+  const { data: updated } = await apiClient.patch<import("@/types/recommendations").Outfit>(
+    `/recommendations/${id}`,
+    data,
+  );
+  return updated;
+}
+
+export async function markOutfitWorn(
+  id: string,
+): Promise<import("@/types/recommendations").Outfit> {
+  const { data } = await apiClient.post<import("@/types/recommendations").Outfit>(
+    `/recommendations/${id}/wear`,
+  );
+  return data;
+}
+
+export async function deleteOutfit(id: string): Promise<void> {
+  await apiClient.delete(`/recommendations/${id}`);
 }
 
 export default apiClient;

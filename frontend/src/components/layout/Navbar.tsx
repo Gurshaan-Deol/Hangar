@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { LayoutGrid, LogOut, Settings, Shirt, Sparkles } from "lucide-react";
+import { BookMarked, LayoutGrid, LogOut, Settings, Shirt, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
   { href: "/wardrobe", label: "Wardrobe", Icon: LayoutGrid },
+  { href: "/outfits", label: "Outfits", Icon: BookMarked },
   { href: "/recommendations", label: "Recommendations", Icon: Sparkles },
 ];
 

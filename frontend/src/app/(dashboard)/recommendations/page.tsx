@@ -220,7 +220,11 @@ export default function RecommendationsPage() {
           )}
 
           {/* Outfit result */}
-          <OutfitDisplay outfit={outfit} isLoading={isPending} />
+          <OutfitDisplay
+            outfit={outfit}
+            isLoading={isPending}
+            onOutfitChange={setOutfit}
+          />
         </main>
       </div>
     </ProtectedRoute>

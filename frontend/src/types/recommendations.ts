@@ -20,6 +20,8 @@ export interface Outfit {
   weather_temp_max: number | null;
   ai_reasoning: string | null;
   rating: number | null;
+  is_favourite: boolean;
+  wear_count: number;
   items: ClothingItem[];
   created_at: string;
   worn_at: string | null;
