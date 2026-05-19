@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, titleCase, capitalize } from "@/lib/utils";
 import { deleteClothingItem } from "@/lib/api";
 import type { ClothingItem } from "@/types/clothing";
 import { AnalysisStatus } from "./AnalysisStatus";
@@ -108,10 +108,10 @@ export function ClothingCard({ item, onClick, onAnalysisComplete, onDelete, read
             ) : (
               <>
                 <p className="truncate text-sm font-medium text-white">
-                  {item.name ?? "Unknown item"}
+                  {titleCase(item.name) || "Unknown item"}
                 </p>
-                <p className={cn("mt-0.5 truncate text-[10px] capitalize text-gray-400")}>
-                  {[item.category, item.color].filter(Boolean).join(" · ")}
+                <p className="mt-0.5 truncate text-[10px] text-gray-400">
+                  {[capitalize(item.category), titleCase(item.color)].filter(Boolean).join(" · ")}
                 </p>
               </>
             )}

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, capitalize, titleCase } from "@/lib/utils";
 
 const CATEGORIES = [
   "shirt", "pants", "shorts", "dress", "skirt", "jacket", "coat",
@@ -159,13 +159,13 @@ function FilterGroup({
             key={opt}
             onClick={() => onToggle(opt)}
             className={cn(
-              "rounded-full px-3 py-1 text-xs font-medium capitalize transition-all duration-150",
+              "rounded-full px-3 py-1 text-xs font-medium transition-all duration-150",
               selected.includes(opt)
                 ? "bg-indigo-600 text-white"
                 : "border border-[var(--color-border)] bg-[var(--color-surface-raised)] text-gray-400 hover:text-white",
             )}
           >
-            {opt}
+            {capitalize(opt)}
           </button>
         ))}
       </div>
@@ -191,7 +191,7 @@ function ColorFilterGroup({
             key={color}
             onClick={() => onToggle(color)}
             className={cn(
-              "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium capitalize transition-all duration-150",
+              "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all duration-150",
               selected.includes(color)
                 ? "bg-indigo-600 text-white"
                 : "border border-[var(--color-border)] bg-[var(--color-surface-raised)] text-gray-400 hover:text-white",
@@ -201,7 +201,7 @@ function ColorFilterGroup({
               className="h-2.5 w-2.5 shrink-0 rounded-full border border-white/20"
               style={{ backgroundColor: color }}
             />
-            {color}
+            {titleCase(color)}
           </button>
         ))}
       </div>

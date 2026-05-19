@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { AlertTriangle, Pencil, Shirt, X } from "lucide-react";
-import { cn, toTitleCase } from "@/lib/utils";
+import { cn, capitalize, titleCase } from "@/lib/utils";
 import { deleteClothingItem, dismissDuplicate, getClothingItem, updateClothingDetails } from "@/lib/api";
 import type { ClothingItem } from "@/types/clothing";
 import { AlertDialog } from "@/components/ui/AlertDialog";
@@ -220,7 +220,7 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
             </span>
 
             <h2 className="mt-2 text-2xl font-bold text-white">
-              {item.name ?? "Unnamed Item"}
+              {titleCase(item.name) || "Unnamed Item"}
             </h2>
 
             <hr className="my-4 border-[var(--color-border)]" />
@@ -236,7 +236,7 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
                 <div className="space-y-4">
                   <DetailRow label="Category">
                     <span className="text-sm text-gray-200">
-                      {item.category ? toTitleCase(item.category) : "—"}
+                      {item.category ? capitalize(item.category) : "—"}
                     </span>
                   </DetailRow>
 
@@ -247,7 +247,7 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
                           className="h-3.5 w-3.5 shrink-0 rounded-full border border-white/20"
                           style={{ backgroundColor: item.color }}
                         />
-                        <span className="text-sm capitalize text-gray-200">{item.color}</span>
+                        <span className="text-sm text-gray-200">{titleCase(item.color)}</span>
                       </div>
                     ) : (
                       <span className="text-sm text-gray-200">—</span>
@@ -256,7 +256,7 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
 
                   <DetailRow label="Style">
                     <span className="text-sm text-gray-200">
-                      {item.style ? toTitleCase(item.style) : "—"}
+                      {item.style ? capitalize(item.style) : "—"}
                     </span>
                   </DetailRow>
 
@@ -268,7 +268,7 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
                             key={s}
                             className="rounded-full bg-[var(--color-surface-raised)] px-2 py-0.5 text-xs text-gray-300"
                           >
-                            {toTitleCase(s)}
+                            {capitalize(s)}
                           </span>
                         ))}
                       </div>
@@ -285,7 +285,7 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
                             key={tag}
                             className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-xs text-indigo-300"
                           >
-                            {toTitleCase(tag)}
+                            {titleCase(tag)}
                           </span>
                         ))}
                       </div>

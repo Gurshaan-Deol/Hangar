@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown, Heart, Repeat, Shirt, Thermometer, Trash2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, capitalize } from "@/lib/utils";
 import { AlertDialog } from "@/components/ui/AlertDialog";
 import { StarRating } from "@/components/ui/StarRating";
 import { relativeTime } from "@/lib/relativeTime";
@@ -97,8 +97,8 @@ export function OutfitCard({ outfit, onUpdate, onDelete }: OutfitCardProps) {
           {/* Row 1: occasion + favourite */}
           <div className="flex items-center justify-between">
             {outfit.occasion ? (
-              <span className="rounded-full bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-0.5 text-xs font-medium capitalize text-indigo-300">
-                {outfit.occasion}
+              <span className="rounded-full bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-0.5 text-xs font-medium text-indigo-300">
+                {capitalize(outfit.occasion)}
               </span>
             ) : (
               <span />

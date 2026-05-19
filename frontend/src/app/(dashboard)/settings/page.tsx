@@ -6,6 +6,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { LocationSettings } from "@/components/settings/LocationSettings";
 import { getCurrentUser } from "@/lib/api";
+import { titleCase } from "@/lib/utils";
 
 export default function SettingsPage() {
   const { data: session } = useSession();
@@ -41,7 +42,7 @@ export default function SettingsPage() {
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center gap-2">
                   <span className="w-16 text-xs text-gray-500">Name</span>
-                  <span className="text-sm text-gray-200">{session?.user?.name ?? "—"}</span>
+                  <span className="text-sm text-gray-200">{titleCase(session?.user?.name) || "—"}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="w-16 text-xs text-gray-500">Email</span>

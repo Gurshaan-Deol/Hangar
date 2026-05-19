@@ -113,6 +113,19 @@ async def on_shutdown(ctx: dict) -> None:
     logger.info("Hangar worker shutting down")
 
 
+def _normalize_analysis(analysis: ClothingAnalysis) -> ClothingAnalysis:
+    """Normalise AI output: store name in title case, all other fields lowercase."""
+    return ClothingAnalysis(
+        name=analysis.name.strip().title() if analysis.name else None,
+        category=analysis.category.strip().lower() if analysis.category else None,
+        color=analysis.color.strip().lower() if analysis.color else None,
+        style=analysis.style.strip().lower() if analysis.style else None,
+        season=[s.strip().lower() for s in analysis.season] if analysis.season else [],
+        tags=[t.strip().lower() for t in analysis.tags] if analysis.tags else [],
+        confidence=analysis.confidence,
+    )
+
+
 async def analyze_clothing_image(ctx: dict, item_id: str) -> None:
     """Analyse a clothing photo and update the ClothingItem record with extracted metadata.
 
@@ -151,7 +164,9 @@ async def analyze_clothing_image(ctx: dict, item_id: str) -> None:
 
             processed_path = await asyncio.to_thread(preprocess_image, cleaned_path)
             try:
-                analysis = await analyze_with_retry(provider, processed_path, item, db)
+                analysis = _normalize_analysis(
+                    await analyze_with_retry(provider, processed_path, item, db)
+                )
             finally:
                 if processed_path != cleaned_path and os.path.exists(processed_path):
                     os.unlink(processed_path)
