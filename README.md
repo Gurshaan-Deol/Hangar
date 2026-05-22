@@ -172,19 +172,19 @@ Note: smaller local models like `gemma3` are slower and less accurate than GPT-4
 │  • Outfit recommendations + history                     │
 └──────┬──────────────┬────────────────┬──────────────────┘
        │              │                │
-┌──────▼──────┐ ┌─────▼──────┐ ┌──────▼──────────────────┐
-│ PostgreSQL  │ │  Redis 7   │ │      arq Worker          │
-│     15      │ │            │ │  • Picks up analysis jobs│
-│             │ │ Job queue  │ │  • Preprocesses images   │
-│ Users       │ │ Weather    │ │  • Calls AI provider     │
-│ Clothing    │ │ cache      │ │  • Updates item status   │
-│ Outfits     │ │            │ │  • Retries on failure    │
-└─────────────┘ └────────────┘ └──────────────────────────┘
+┌──────▼──────┐ ┌─────▼──────┐ ┌──────▼────────────────────┐
+│ PostgreSQL  │ │  Redis 7   │ │      arq Worker           │
+│     15      │ │            │ │  • Picks up analysis jobs │
+│             │ │ Job queue  │ │  • Preprocesses images    │
+│ Users       │ │ Weather    │ │  • Calls AI provider      │
+│ Clothing    │ │ cache      │ │  • Updates item status    │
+│ Outfits     │ │            │ │  • Retries on failure     │
+└─────────────┘ └────────────┘ └───────────────────────────┘
                                           │
-                               ┌──────────▼──────────────┐
+                               ┌──────────▼───────────────┐
                                │      AI Provider         │
                                │  OpenAI / Gemini / Ollama│
-                               └─────────────────────────┘
+                               └──────────────────────────┘
 ```
 
 Photo uploads are analysed by an arq background worker so the HTTP request returns immediately. The frontend polls the item's status field (`pending` → `analyzing` → `ready`) to show live progress without blocking.
