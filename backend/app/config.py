@@ -53,8 +53,11 @@ class Settings(BaseSettings):
     @field_validator("nextauth_secret")
     @classmethod
     def nextauth_secret_must_be_set(cls, v: str) -> str:
-        if not v or len(v) < 10:
-            raise ValueError("NEXTAUTH_SECRET must be at least 10 characters")
+        if not v or len(v) < 32:
+            raise ValueError(
+                "NEXTAUTH_SECRET must be at least 32 characters for HS256 security. "
+                "Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
+            )
         return v
 
     @field_validator("ai_api_key")

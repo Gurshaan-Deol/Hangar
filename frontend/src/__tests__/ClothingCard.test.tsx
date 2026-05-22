@@ -37,7 +37,7 @@ const mockItem: ClothingItem = {
   style: 'casual',
   season: ['fall', 'winter'],
   tags: ['weekend', 'outdoor'],
-  image_url: null,
+  image_endpoint: "/api/v1/clothing/123/image",
   status: 'ready',
   attempt_count: 0,
   notes: null,

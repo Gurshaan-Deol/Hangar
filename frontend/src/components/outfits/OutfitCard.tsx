@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Heart, Repeat, Shirt, Thermometer, Trash2 } from "lucide-react";
+import Image from "next/image";
+import { ChevronDown, Heart, Loader2, Repeat, Shirt, Thermometer, Trash2 } from "lucide-react";
 import { cn, capitalize } from "@/lib/utils";
 import { AlertDialog } from "@/components/ui/AlertDialog";
 import { StarRating } from "@/components/ui/StarRating";
@@ -16,19 +17,16 @@ interface OutfitCardProps {
 }
 
 function ItemThumbnail({ item }: { item: Outfit["items"][number] }) {
-  if (item.image_url) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={item.image_url}
-        alt={item.name ?? item.category ?? "Clothing item"}
-        className="w-16 h-16 rounded-xl object-cover"
-      />
-    );
-  }
   return (
-    <div className="w-16 h-16 rounded-xl bg-gray-700 flex items-center justify-center">
-      <Shirt className="h-6 w-6 text-gray-500" />
+    <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-gray-700 shrink-0">
+      <Image
+        src={item.image_endpoint.replace("/api/v1/", "/api/proxy/")}
+        alt={item.name ?? item.category ?? "Clothing item"}
+        fill
+        className="object-cover"
+        sizes="64px"
+        unoptimized
+      />
     </div>
   );
 }
@@ -36,37 +34,72 @@ function ItemThumbnail({ item }: { item: Outfit["items"][number] }) {
 export function OutfitCard({ outfit, onUpdate, onDelete }: OutfitCardProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [reasoningOpen, setReasoningOpen] = useState(false);
   const [woreFlash, setWoreFlash] = useState(false);
+  const [isFavouriting, setIsFavouriting] = useState(false);
+  const [isMarkingWorn, setIsMarkingWorn] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const visibleItems = outfit.items.slice(0, 4);
   const extraCount = outfit.items.length - 4;
 
+  function clearActionError() {
+    setActionError(null);
+  }
+
   async function handleToggleFavourite() {
-    const updated = await updateOutfit(outfit.id, { is_favourite: !outfit.is_favourite });
-    onUpdate(updated);
+    setIsFavouriting(true);
+    clearActionError();
+    try {
+      const updated = await updateOutfit(outfit.id, { is_favourite: !outfit.is_favourite });
+      onUpdate(updated);
+    } catch {
+      setActionError("Failed to update. Please try again.");
+      setTimeout(() => setActionError(null), 3000);
+    } finally {
+      setIsFavouriting(false);
+    }
   }
 
   async function handleRate(rating: number) {
-    const updated = await updateOutfit(outfit.id, { rating });
-    onUpdate(updated);
+    clearActionError();
+    try {
+      const updated = await updateOutfit(outfit.id, { rating });
+      onUpdate(updated);
+    } catch {
+      setActionError("Failed to save rating. Please try again.");
+      setTimeout(() => setActionError(null), 3000);
+    }
   }
 
   async function handleWore() {
-    const updated = await markOutfitWorn(outfit.id);
-    onUpdate(updated);
-    setWoreFlash(true);
-    setTimeout(() => setWoreFlash(false), 1500);
+    setIsMarkingWorn(true);
+    clearActionError();
+    try {
+      const updated = await markOutfitWorn(outfit.id);
+      onUpdate(updated);
+      setWoreFlash(true);
+      setTimeout(() => setWoreFlash(false), 1500);
+    } catch {
+      setActionError("Failed to log wear. Please try again.");
+      setTimeout(() => setActionError(null), 3000);
+    } finally {
+      setIsMarkingWorn(false);
+    }
   }
 
   async function handleDelete() {
     setIsDeleting(true);
+    setDeleteError(null);
     try {
       await deleteOutfit(outfit.id);
       onDelete(outfit.id);
+      setDeleteOpen(false);
+    } catch {
+      setDeleteError("Failed to delete outfit. Please try again.");
     } finally {
       setIsDeleting(false);
-      setDeleteOpen(false);
     }
   }
 
@@ -105,17 +138,22 @@ export function OutfitCard({ outfit, onUpdate, onDelete }: OutfitCardProps) {
             )}
             <button
               onClick={handleToggleFavourite}
-              className="transition-colors focus:outline-none"
+              disabled={isFavouriting}
+              className="transition-colors focus:outline-none disabled:opacity-50"
               aria-label={outfit.is_favourite ? "Remove from favourites" : "Add to favourites"}
             >
-              <Heart
-                className={cn(
-                  "h-5 w-5 transition-colors",
-                  outfit.is_favourite
-                    ? "text-red-400 fill-red-400"
-                    : "text-gray-500 hover:text-red-400",
-                )}
-              />
+              {isFavouriting ? (
+                <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+              ) : (
+                <Heart
+                  className={cn(
+                    "h-5 w-5 transition-colors",
+                    outfit.is_favourite
+                      ? "text-red-400 fill-red-400"
+                      : "text-gray-500 hover:text-red-400",
+                  )}
+                />
+              )}
             </button>
           </div>
 
@@ -146,15 +184,17 @@ export function OutfitCard({ outfit, onUpdate, onDelete }: OutfitCardProps) {
           <div className="flex items-center justify-between gap-2 pt-1">
             <button
               onClick={handleWore}
-              disabled={woreFlash}
+              disabled={woreFlash || isMarkingWorn}
               className={cn(
-                "flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm transition-all",
+                "flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm transition-all disabled:opacity-50",
                 woreFlash
                   ? "bg-green-600/20 text-green-400"
                   : "bg-[var(--color-surface-raised)] hover:bg-indigo-600 text-gray-300 hover:text-white",
               )}
             >
-              {woreFlash ? (
+              {isMarkingWorn ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : woreFlash ? (
                 "Logged! ✓"
               ) : (
                 <>
@@ -171,6 +211,11 @@ export function OutfitCard({ outfit, onUpdate, onDelete }: OutfitCardProps) {
               <Trash2 className="h-4 w-4" />
             </button>
           </div>
+
+          {/* Action error */}
+          {actionError && (
+            <p className="text-xs text-red-400">{actionError}</p>
+          )}
 
           {/* Collapsible AI reasoning */}
           {outfit.ai_reasoning && (
@@ -206,7 +251,7 @@ export function OutfitCard({ outfit, onUpdate, onDelete }: OutfitCardProps) {
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title="Delete this outfit?"
-        description="This outfit will be removed from your history."
+        description={deleteError ?? "This outfit will be removed from your history."}
         confirmLabel="Delete"
         confirmClassName="bg-red-600 hover:bg-red-500"
         isConfirming={isDeleting}

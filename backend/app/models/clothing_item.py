@@ -34,7 +34,6 @@ class ClothingItem(Base):
     season: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
     tags: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
     image_path: Mapped[str] = mapped_column(String(500), nullable=False)
-    image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
     ai_raw_response: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

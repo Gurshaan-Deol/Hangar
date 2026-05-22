@@ -8,11 +8,6 @@ const nextConfig = {
         source: "/api/v1/:path*",
         destination: `${backend}/api/v1/:path*`,
       },
-      {
-        // Proxy clothing images so image_url paths like /uploads/... work in the browser
-        source: "/uploads/:path*",
-        destination: `${backend}/uploads/:path*`,
-      },
     ];
   },
 };

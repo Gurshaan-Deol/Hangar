@@ -2,9 +2,10 @@
 
 import logging
 
+import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import ExpiredSignatureError, JWTError, jwt
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +34,12 @@ async def get_current_user_email(
 
     token = credentials.credentials
     try:
-        payload = jwt.decode(token, settings.nextauth_secret, algorithms=["HS256"])
+        payload = jwt.decode(
+            token,
+            settings.nextauth_secret,
+            algorithms=["HS256"],
+            options={"verify_aud": False},
+        )
         email: str | None = payload.get("email")
         if not email:
             raise HTTPException(
@@ -46,7 +52,7 @@ async def get_current_user_email(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Your session has expired. Please sign in again.",
         ) from exc
-    except JWTError as exc:
+    except InvalidTokenError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token.",

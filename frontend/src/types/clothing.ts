@@ -7,7 +7,7 @@ export interface ClothingItem {
   style: string | null;
   season: string[] | null;
   tags: string[] | null;
-  image_url: string | null;
+  image_endpoint: string;
   status: "pending" | "analyzing" | "ready" | "failed";
   attempt_count: number;
   notes: string | null;

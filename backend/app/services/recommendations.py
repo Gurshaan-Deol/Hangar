@@ -3,7 +3,7 @@
 import logging
 import uuid
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -30,14 +30,13 @@ async def get_relevant_items(
     and caps the result at _MAX_ITEMS. Falls back to all ready items when fewer
     than _MIN_ITEMS pass the filter so we never return an empty set.
     """
-    total_result = await db.execute(
-        select(ClothingItem).where(
+    count_result = await db.execute(
+        select(func.count()).select_from(ClothingItem).where(
             ClothingItem.user_id == user_id,
             ClothingItem.status == "ready",
         )
     )
-    all_items = total_result.scalars().all()
-    total = len(all_items)
+    total = count_result.scalar_one()
 
     temp = weather.temperature
     if temp < 10:
@@ -71,7 +70,12 @@ async def get_relevant_items(
 
     if len(items) < _MIN_ITEMS:
         logger.info("Pre-filter returned only %d items — falling back to all ready items", len(items))
-        items = list(all_items)[:_MAX_ITEMS]
+        fallback_result = await db.execute(
+            select(ClothingItem)
+            .where(ClothingItem.user_id == user_id, ClothingItem.status == "ready")
+            .limit(_MAX_ITEMS)
+        )
+        items = list(fallback_result.scalars().all())
 
     logger.info("Pre-filtered to %d relevant items from %d total", len(items), total)
     return items

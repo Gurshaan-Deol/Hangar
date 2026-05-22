@@ -262,5 +262,6 @@ class WorkerSettings:
     keep_result = 3600
     on_startup = on_startup
     on_shutdown = on_shutdown
-    retry_jobs = True
-    max_tries = 2
+    # Internal analyze_with_retry handles up to 3 attempts with proper attempt_count
+    # tracking. arq-level retries are disabled to avoid multiplying AI API calls.
+    retry_jobs = False

@@ -65,19 +65,16 @@ export function ClothingCard({ item, onClick, onAnalysisComplete, onDelete, read
         )}
       >
         <div className="relative aspect-[3/4]">
-          {/* Image */}
-          {item.image_url ? (
-            <Image
-              src={item.image_url}
-              alt={item.name ?? "Clothing item"}
-              fill
-              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
-              className="object-cover"
-              loading="lazy"
-            />
-          ) : (
-            <div className="h-full w-full bg-[var(--color-surface)]" />
-          )}
+          {/* Image — goes through /api/proxy so the route handler can inject auth headers */}
+          <Image
+            src={item.image_endpoint.replace("/api/v1/", "/api/proxy/")}
+            alt={item.name ?? "Clothing item"}
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
+            className="object-cover"
+            loading="lazy"
+            unoptimized
+          />
 
           {/* Shimmer overlay for processing items */}
           {isProcessing && (

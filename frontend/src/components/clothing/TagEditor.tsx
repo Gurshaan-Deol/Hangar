@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { X } from "lucide-react";
-import { cn, toTitleCase } from "@/lib/utils";
+import { cn, titleCase } from "@/lib/utils";
 
 interface TagEditorProps {
   tags: string[];
@@ -20,7 +20,7 @@ export function TagEditor({ tags, onChange, maxTags = 20, disabled = false }: Ta
   }
 
   function addTag(raw: string) {
-    const val = toTitleCase(raw.replace(",", "").trim());
+    const val = titleCase(raw.replace(",", "").trim());
     if (!val || val.length > 30) return;
     if (tags.some((t) => t.toLowerCase() === val.toLowerCase())) return;
     if (tags.length >= maxTags) return;
@@ -58,7 +58,7 @@ export function TagEditor({ tags, onChange, maxTags = 20, disabled = false }: Ta
             title={tag}
             className="inline-flex max-w-[192px] items-center gap-1 rounded-full border border-indigo-500/25 bg-indigo-500/15 py-0.5 pl-2.5 pr-1.5 text-xs font-medium text-indigo-300"
           >
-            <span className="truncate">{toTitleCase(tag)}</span>
+            <span className="truncate">{titleCase(tag)}</span>
             {!disabled && (
               <button
                 type="button"

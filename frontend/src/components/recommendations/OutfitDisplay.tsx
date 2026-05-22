@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CheckCircle, Heart, Shirt, Sparkles } from "lucide-react";
+import { CheckCircle, Heart, Loader2, Shirt, Sparkles } from "lucide-react";
 import { ClothingCard } from "@/components/wardrobe/ClothingCard";
 import { cn } from "@/lib/utils";
 import { updateOutfit, markOutfitWorn } from "@/lib/api";
@@ -24,6 +24,16 @@ interface OutfitDisplayProps {
 export function OutfitDisplay({ outfit, isLoading, onOutfitChange }: OutfitDisplayProps) {
   const [localOutfit, setLocalOutfit] = useState<Outfit | null>(null);
   const [woreFlash, setWoreFlash] = useState(false);
+  const [isFavouriting, setIsFavouriting] = useState(false);
+  const [isMarkingWorn, setIsMarkingWorn] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // Reset local overrides whenever a new outfit is generated
+  useEffect(() => {
+    setLocalOutfit(null);
+    setWoreFlash(false);
+    setActionError(null);
+  }, [outfit?.id]);
 
   const displayed = localOutfit ?? outfit;
 
@@ -34,16 +44,34 @@ export function OutfitDisplay({ outfit, isLoading, onOutfitChange }: OutfitDispl
 
   async function handleFavourite() {
     if (!displayed) return;
-    const updated = await updateOutfit(displayed.id, { is_favourite: true });
-    applyUpdate(updated);
+    setIsFavouriting(true);
+    setActionError(null);
+    try {
+      const updated = await updateOutfit(displayed.id, { is_favourite: !displayed.is_favourite });
+      applyUpdate(updated);
+    } catch {
+      setActionError("Failed to update. Please try again.");
+      setTimeout(() => setActionError(null), 3000);
+    } finally {
+      setIsFavouriting(false);
+    }
   }
 
   async function handleWore() {
     if (!displayed) return;
-    const updated = await markOutfitWorn(displayed.id);
-    applyUpdate(updated);
-    setWoreFlash(true);
-    setTimeout(() => setWoreFlash(false), 2000);
+    setIsMarkingWorn(true);
+    setActionError(null);
+    try {
+      const updated = await markOutfitWorn(displayed.id);
+      applyUpdate(updated);
+      setWoreFlash(true);
+      setTimeout(() => setWoreFlash(false), 2000);
+    } catch {
+      setActionError("Failed to log wear. Please try again.");
+      setTimeout(() => setActionError(null), 3000);
+    } finally {
+      setIsMarkingWorn(false);
+    }
   }
 
   if (isLoading) {
@@ -114,33 +142,39 @@ export function OutfitDisplay({ outfit, isLoading, onOutfitChange }: OutfitDispl
 
       {/* Action buttons */}
       <div className="flex items-center gap-3 flex-wrap">
-        {/* Save to favourites */}
+        {/* Save / unsave favourites */}
         <button
           onClick={handleFavourite}
-          disabled={isFavourited}
+          disabled={isFavouriting}
           className={cn(
-            "flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition-all",
+            "flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition-all disabled:opacity-50",
             isFavourited
-              ? "border-red-500/30 bg-red-500/10 text-red-400 cursor-default"
+              ? "border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20"
               : "border-[var(--color-border)] bg-[var(--color-surface-raised)] text-gray-300 hover:bg-red-500/20 hover:border-red-500/30 hover:text-red-400",
           )}
         >
-          <Heart className={cn("h-3.5 w-3.5", isFavourited && "fill-red-400")} />
+          {isFavouriting ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Heart className={cn("h-3.5 w-3.5", isFavourited && "fill-red-400")} />
+          )}
           {isFavourited ? "Saved to favourites ♥" : "Save to favourites"}
         </button>
 
         {/* Wore this today */}
         <button
           onClick={handleWore}
-          disabled={woreFlash}
+          disabled={woreFlash || isMarkingWorn}
           className={cn(
-            "flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition-all",
+            "flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition-all disabled:opacity-50",
             woreFlash
               ? "border-green-500/30 bg-green-500/10 text-green-400 cursor-default"
               : "border-[var(--color-border)] bg-[var(--color-surface-raised)] text-gray-300 hover:bg-indigo-600 hover:border-indigo-600 hover:text-white",
           )}
         >
-          {woreFlash ? (
+          {isMarkingWorn ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : woreFlash ? (
             <>
               <CheckCircle className="h-3.5 w-3.5" />
               Logged! ✓
@@ -153,6 +187,11 @@ export function OutfitDisplay({ outfit, isLoading, onOutfitChange }: OutfitDispl
           )}
         </button>
       </div>
+
+      {/* Action error */}
+      {actionError && (
+        <p className="text-xs text-red-400">{actionError}</p>
+      )}
 
       {/* Link to history */}
       <div className="pt-1">

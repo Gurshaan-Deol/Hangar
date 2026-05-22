@@ -21,6 +21,15 @@ class SyncRequest(BaseModel):
     avatar_url: str | None = None
 
 
+# SECURITY NOTE: This endpoint is intentionally unauthenticated.
+# It is called server-side by NextAuth.js immediately after OAuth completes.
+# The trust model relies on:
+#   1. NEXTAUTH_SECRET being kept private (tokens are HS256-signed with it)
+#   2. Rate limiting (20/min per IP) to prevent spam account creation
+#   3. The endpoint only being called from the Next.js server, not the browser
+# A production hardening option would be to require a shared secret header
+# (e.g. X-Internal-Secret) that only the Next.js server knows.
+# This is documented as a known tradeoff for self-hosted deployments.
 @router.post("/sync", response_model=UserResponse)
 @limiter.limit("20/minute")
 async def sync_user(

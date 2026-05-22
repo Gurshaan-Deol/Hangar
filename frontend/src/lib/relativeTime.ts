@@ -2,6 +2,7 @@ export function relativeTime(dateString: string): string {
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
+  if (diffMs < 0) return "Just now"; // guard against future dates from clock skew
   const diffSec = Math.floor(diffMs / 1000);
   const diffMin = Math.floor(diffSec / 60);
   const diffHours = Math.floor(diffMin / 60);

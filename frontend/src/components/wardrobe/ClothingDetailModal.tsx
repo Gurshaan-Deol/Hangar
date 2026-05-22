@@ -125,19 +125,14 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
         <div className="flex flex-col md:flex-row">
           {/* LEFT — image */}
           <div className="relative h-60 w-full shrink-0 md:h-auto md:w-1/2">
-            {item.image_url ? (
-              <Image
-                src={item.image_url}
-                alt={item.name ?? "Clothing item"}
-                fill
-                className="object-cover"
-                sizes="(max-width: 768px) 100vw, 50vw"
-              />
-            ) : (
-              <div className="flex h-full min-h-[280px] w-full items-center justify-center bg-[var(--color-surface-raised)]">
-                <Shirt className="h-16 w-16 text-gray-600" strokeWidth={1} />
-              </div>
-            )}
+            <Image
+              src={item.image_endpoint.replace("/api/v1/", "/api/proxy/")}
+              alt={item.name ?? "Clothing item"}
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 100vw, 50vw"
+              unoptimized
+            />
           </div>
 
           {/* RIGHT — details */}
@@ -167,19 +162,14 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
                     {duplicateItem && (
                       <div className="mt-3 flex items-center gap-2.5">
                         <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-amber-500/20">
-                          {duplicateItem.image_url ? (
-                            <Image
-                              src={duplicateItem.image_url}
-                              alt={duplicateItem.name ?? "Similar item"}
-                              fill
-                              className="object-cover"
-                              sizes="48px"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-[var(--color-surface-raised)]">
-                              <Shirt className="h-5 w-5 text-gray-600" strokeWidth={1} />
-                            </div>
-                          )}
+                          <Image
+                            src={duplicateItem.image_endpoint.replace("/api/v1/", "/api/proxy/")}
+                            alt={duplicateItem.name ?? "Similar item"}
+                            fill
+                            className="object-cover"
+                            sizes="48px"
+                            unoptimized
+                          />
                         </div>
                         <p className="truncate text-xs text-gray-400">
                           {duplicateItem.name ?? "Unnamed item"}

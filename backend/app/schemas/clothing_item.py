@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field
 
 
 class ClothingItemBase(BaseModel):
@@ -50,7 +50,6 @@ class ClothingItemDetailsUpdate(BaseModel):
 class ClothingItemResponse(ClothingItemBase):
     id: UUID
     user_id: UUID
-    image_url: str | None = None
     status: str
     attempt_count: int = 0
     duplicate_of: UUID | None = None
@@ -59,7 +58,12 @@ class ClothingItemResponse(ClothingItemBase):
     dismissed_duplicate: bool = False
     created_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def image_endpoint(self) -> str:
+        return f"/api/v1/clothing/{self.id}/image"
 
 
 class ClothingItemStatusResponse(BaseModel):

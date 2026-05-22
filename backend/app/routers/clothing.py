@@ -118,12 +118,10 @@ async def upload_clothing(
             detail="Failed to save image. Please try again.",
         ) from exc
 
-    image_url = f"/uploads/{current_user.id}/{filename}"
     item = ClothingItem(
         id=item_id,
         user_id=current_user.id,
         image_path=str(file_path),
-        image_url=image_url,
         status="pending",
     )
     db.add(item)
@@ -200,6 +198,27 @@ async def update_clothing_details(
     This is the manual fallback for when AI analysis fails or produces bad results.
     Unlike the general PATCH endpoint, this always marks the item as ready.
     """
+    meaningful_fields = [body.name, body.category, body.color, body.style]
+    if not any(meaningful_fields):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Provide at least one of: name, category, color, or style to save details.",
+        )
+
+    # Normalize text fields to lowercase for consistent storage and filtering
+    if body.name:
+        body.name = body.name.strip()
+    if body.category:
+        body.category = body.category.strip().lower()
+    if body.color:
+        body.color = body.color.strip().lower()
+    if body.style:
+        body.style = body.style.strip().lower()
+    if body.season:
+        body.season = [s.strip().lower() for s in body.season]
+    if body.tags:
+        body.tags = [t.strip().lower() for t in body.tags]
+
     item = await _get_owned_item(item_id, current_user, db)
 
     updates = body.model_dump(exclude_unset=True)
@@ -311,7 +330,7 @@ async def get_clothing_image(
 
     resolved = Path(item.image_path).resolve()
     upload_dir = Path(settings.upload_dir).resolve()
-    if not str(resolved).startswith(str(upload_dir)):
+    if not resolved.is_relative_to(upload_dir):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     return FileResponse(item.image_path)

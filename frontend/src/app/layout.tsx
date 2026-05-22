@@ -3,8 +3,23 @@ import "./globals.css";
 import { Providers } from "@/components/Providers";
 
 export const metadata: Metadata = {
-  title: "Hangar",
-  description: "Your AI-powered wardrobe manager",
+  title: "Hangar — AI Wardrobe Manager",
+  description:
+    "Self-hosted AI wardrobe manager. Upload your clothes, get outfit suggestions based on today's weather.",
+  keywords: ["wardrobe", "AI", "outfit", "fashion", "self-hosted"],
+  openGraph: {
+    title: "Hangar — AI Wardrobe Manager",
+    description:
+      "Self-hosted AI wardrobe manager. Upload your clothes, get outfit suggestions based on today's weather.",
+    type: "website",
+    siteName: "Hangar",
+  },
+  twitter: {
+    card: "summary",
+    title: "Hangar — AI Wardrobe Manager",
+    description:
+      "Self-hosted AI wardrobe manager. Upload your clothes, get outfit suggestions based on today's weather.",
+  },
 };
 
 export default function RootLayout({

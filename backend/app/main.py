@@ -5,7 +5,6 @@ from arq import create_pool
 from arq.connections import RedisSettings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -48,5 +47,3 @@ app.include_router(health.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(clothing.router, prefix="/api/v1")
 app.include_router(recommendations.router, prefix="/api/v1")
-
-app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")

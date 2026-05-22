@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { CheckCircle2, Loader2, Save } from "lucide-react";
-import { cn, toTitleCase } from "@/lib/utils";
+import { cn, titleCase } from "@/lib/utils";
 import type { ClothingItem } from "@/types/clothing";
 import { TagEditor } from "./TagEditor";
 import { SeasonPicker } from "./SeasonPicker";
@@ -162,7 +162,7 @@ export function ItemEditForm({ item, onSave, onCancel }: ItemEditFormProps) {
           >
             {CATEGORIES.map((c) => (
               <option key={c} value={c} style={{ background: "#1a1a1f" }}>
-                {toTitleCase(c)}
+                {titleCase(c)}
               </option>
             ))}
           </select>
@@ -182,7 +182,7 @@ export function ItemEditForm({ item, onSave, onCancel }: ItemEditFormProps) {
           >
             {STYLES.map((s) => (
               <option key={s} value={s} style={{ background: "#1a1a1f" }}>
-                {toTitleCase(s)}
+                {titleCase(s)}
               </option>
             ))}
           </select>

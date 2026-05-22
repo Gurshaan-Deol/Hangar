@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, X } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
@@ -9,10 +9,13 @@ import { UploadZone } from "@/components/wardrobe/UploadZone";
 import { ClothingGrid } from "@/components/wardrobe/ClothingGrid";
 import { ClothingDetailModal } from "@/components/wardrobe/ClothingDetailModal";
 import { WardrobeFilters, EMPTY_FILTERS } from "@/components/wardrobe/WardrobeFilters";
+import { Pagination } from "@/components/ui/Pagination";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { getWardrobe } from "@/lib/api";
 import type { ClothingItem, ClothingItemListResponse } from "@/types/clothing";
 import type { FilterState } from "@/components/wardrobe/WardrobeFilters";
+
+const ITEMS_PER_PAGE = 20;
 
 function SkeletonCard() {
   return (
@@ -22,22 +25,36 @@ function SkeletonCard() {
 
 export default function WardrobePage() {
   const queryClient = useQueryClient();
+  const [currentPage, setCurrentPage] = useState(1);
   const [activeFilters, setActiveFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [optimisticItems, setOptimisticItems] = useState<ClothingItem[]>([]);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ClothingItem | null>(null);
 
+  // Derive the active category filter (single value passed to the API)
+  const categoryFilter = activeFilters.categories.length === 1 ? activeFilters.categories[0] : undefined;
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeFilters]);
+
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["wardrobe"],
-    queryFn: () => getWardrobe(),
+    queryKey: ["wardrobe", currentPage, categoryFilter],
+    queryFn: () => getWardrobe(currentPage, ITEMS_PER_PAGE, categoryFilter),
+    placeholderData: (prev) => prev,
   });
+
+  const totalPages = Math.ceil((data?.total ?? 0) / ITEMS_PER_PAGE);
 
   const allItems = useMemo(() => {
     const fetched = data?.items ?? [];
+    // Only prepend optimistic items on page 1 so they appear at the top
+    if (currentPage !== 1) return fetched;
     const fetchedIds = new Set(fetched.map((i) => i.id));
     const extras = optimisticItems.filter((i) => !fetchedIds.has(i.id));
     return [...extras, ...fetched];
-  }, [data?.items, optimisticItems]);
+  }, [data?.items, optimisticItems, currentPage]);
 
   // Derive available colour and aesthetic (tag) options from the loaded wardrobe
   const colorOptions = useMemo(
@@ -52,11 +69,11 @@ export default function WardrobePage() {
   const filteredItems = useMemo(() => {
     const { categories, formality, seasons, colors, aesthetics } = activeFilters;
     return allItems.filter((item) => {
-      if (categories.length > 0 && !categories.includes(item.category ?? "")) return false;
-      if (formality.length > 0 && !formality.includes(item.style ?? "")) return false;
-      if (seasons.length > 0 && !seasons.some((s) => item.season?.includes(s))) return false;
-      if (colors.length > 0 && !colors.includes(item.color ?? "")) return false;
-      if (aesthetics.length > 0 && !aesthetics.some((a) => item.tags?.includes(a))) return false;
+      if (categories.length > 0 && !categories.some((c) => c.toLowerCase() === item.category?.toLowerCase())) return false;
+      if (formality.length > 0 && !formality.some((f) => f.toLowerCase() === item.style?.toLowerCase())) return false;
+      if (seasons.length > 0 && !seasons.some((s) => item.season?.some((is) => is.toLowerCase() === s.toLowerCase()))) return false;
+      if (colors.length > 0 && !colors.some((c) => c.toLowerCase() === item.color?.toLowerCase())) return false;
+      if (aesthetics.length > 0 && !aesthetics.some((a) => item.tags?.some((t) => t.toLowerCase() === a.toLowerCase()))) return false;
       return true;
     });
   }, [allItems, activeFilters]);
@@ -77,7 +94,7 @@ export default function WardrobePage() {
   const handleDelete = useCallback(
     (id: string) => {
       setOptimisticItems((prev) => prev.filter((i) => i.id !== id));
-      queryClient.setQueryData<ClothingItemListResponse>(["wardrobe"], (old) => {
+      queryClient.setQueryData<ClothingItemListResponse>(["wardrobe", currentPage, categoryFilter], (old) => {
         if (!old) return old;
         return {
           ...old,
@@ -86,7 +103,7 @@ export default function WardrobePage() {
         };
       });
     },
-    [queryClient],
+    [queryClient, currentPage, categoryFilter],
   );
 
   return (
@@ -99,9 +116,9 @@ export default function WardrobePage() {
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-white">My Wardrobe</h1>
-              {!isLoading && (
+              {!isLoading && data && (
                 <span className="rounded-full bg-indigo-500/20 px-3 py-0.5 text-sm text-indigo-300">
-                  {allItems.length} {allItems.length === 1 ? "item" : "items"}
+                  {data.total} {data.total === 1 ? "item" : "items"}
                 </span>
               )}
             </div>
@@ -135,12 +152,19 @@ export default function WardrobePage() {
               ))}
             </div>
           ) : (
-            <ClothingGrid
-              items={filteredItems}
-              onItemClick={setSelectedItem}
-              onItemUpdated={handleItemUpdated}
-              onItemDeleted={handleDelete}
-            />
+            <>
+              <ClothingGrid
+                items={filteredItems}
+                onItemClick={setSelectedItem}
+                onItemUpdated={handleItemUpdated}
+                onItemDeleted={handleDelete}
+              />
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
+            </>
           )}
         </main>
 
