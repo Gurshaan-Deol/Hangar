@@ -1,6 +1,6 @@
-# 🧥 Hangar
+# Hangar
 
-**Self-hosted AI wardrobe manager. Upload your clothes, get outfit suggestions based on today's weather.**
+A self-hosted wardrobe manager that uses AI to catalogue your clothes and suggest outfits based on the weather.
 
 [![Next.js](https://img.shields.io/badge/Next.js-14-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
@@ -23,7 +23,7 @@
 
 ### Upload & Analysis
 ![Upload zone with drag-and-drop interface and live AI analysis status](docs/screenshots/upload.png)
-*Drop a photo — AI extracts the category, colour, style, and season*
+*Drop a photo and the AI takes care of the rest*
 
 ### Outfit Recommendations
 ![Recommendations page showing weather widget, occasion selector, and AI-generated outfit](docs/screenshots/recommendations.png)
@@ -31,28 +31,21 @@
 
 ### Saved Outfits
 ![Outfit history page showing saved outfits with star ratings and wear count](docs/screenshots/outfits.png)
-*Track what you wear, rate your outfits, and build a history*
+*Track what you wear, rate your outfits, and build a history over time*
 
 ---
 
-## Features
+## What it does
 
-- 📸 **Photo-based wardrobe** — Upload photos, AI extracts clothing type, colour, style, and season automatically
-- 🌤️ **Smart recommendations** — Outfits matched to today's real weather and occasion via Open-Meteo
-- 🤖 **Works with any AI** — OpenAI, Google Gemini, Ollama (free local), or any OpenAI-compatible API
-- 🔐 **OAuth login** — Sign in with GitHub or Google, no passwords to manage
-- 👗 **Outfit history** — Save outfits, rate them, and track how often you wear them
-- 🐳 **One-command setup** — Docker Compose brings up the entire stack
-- 🔒 **Fully self-hosted** — Your photos and data never leave your machine
+You upload a photo of a piece of clothing. An AI model running in the background figures out what it is — the category, colour, style, and what season it works for — and saves all of that to your wardrobe automatically. Once you have enough items, you can ask for an outfit recommendation. The app pulls today's real weather data and asks the AI to put together a combination of items that make sense for the conditions and occasion. Everything is saved locally, nothing goes to a third-party service, and you can run the whole thing with a single Docker command.
 
----
-
-## How It Works
-
-1. **Upload a photo** — drag and drop any photo of a clothing item into your wardrobe
-2. **AI analyses it** — runs in the background via a Redis job queue; automatically extracts category, colour, style, and season
-3. **Get recommendations** — the app fetches today's real weather from Open-Meteo and asks the AI to pick items from your wardrobe that work well together
-4. **Track your outfits** — rate outfits, log when you wore them, and save your favourites
+**Key features:**
+- Photo-based wardrobe cataloguing with automatic AI tagging
+- Daily outfit suggestions matched to live weather data from Open-Meteo
+- Supports OpenAI, Google Gemini, Ollama (free, runs locally), or any OpenAI-compatible API
+- Sign in with GitHub or Google — no passwords
+- Outfit history with star ratings and wear tracking
+- Fully self-hosted — your photos and data stay on your machine
 
 ---
 
@@ -74,13 +67,13 @@ docker compose exec backend alembic upgrade head
 | Service | URL |
 |---|---|
 | App | http://localhost:3000 |
-| API docs (Swagger) | http://localhost:8000/docs |
+| API docs | http://localhost:8000/docs |
 
 ---
 
 ## OAuth Setup
 
-You need credentials from at least one OAuth provider. Both are free.
+You need credentials from at least one provider. Both are free.
 
 ### GitHub
 
@@ -114,7 +107,7 @@ You only need one provider to get started.
 
 ## AI Configuration
 
-Pick one provider and set the corresponding block in your `.env`.
+Pick one provider and set the relevant block in your `.env`.
 
 ### OpenAI
 
@@ -138,7 +131,7 @@ AI_TEXT_MODEL=gemini-1.5-pro
 
 ### Ollama (free, runs locally)
 
-[Install Ollama](https://ollama.com), then pull a vision model:
+[Install Ollama](https://ollama.com), pull a vision-capable model, then point the app at it.
 
 ```bash
 ollama pull gemma3:latest
@@ -151,6 +144,8 @@ AI_API_KEY=not-needed
 AI_VISION_MODEL=gemma3:latest
 AI_TEXT_MODEL=gemma3:latest
 ```
+
+Note: smaller local models like `gemma3` are slower and less accurate than GPT-4o or Gemini. Analysis can take 30–60 seconds per item on CPU.
 
 ---
 
@@ -192,7 +187,7 @@ AI_TEXT_MODEL=gemma3:latest
                                └─────────────────────────┘
 ```
 
-Photo uploads are analysed in the background by an **arq worker** so the HTTP request returns immediately. The frontend polls the item's `status` field (`pending` → `analyzing` → `ready`) to show live progress.
+Photo uploads are analysed by an arq background worker so the HTTP request returns immediately. The frontend polls the item's status field (`pending` → `analyzing` → `ready`) to show live progress without blocking.
 
 ---
 
@@ -204,8 +199,8 @@ Photo uploads are analysed in the background by an **arq worker** so the HTTP re
 | Backend | FastAPI 0.111, SQLAlchemy 2.0 (async), Pydantic v2, Python 3.11+ |
 | Database | PostgreSQL 15 |
 | Cache + Queue | Redis 7 + arq |
-| Auth | NextAuth.js v5 (GitHub + Google OAuth) |
-| AI | Any OpenAI-compatible API (OpenAI, Gemini, Ollama, …) |
+| Auth | NextAuth.js v5 — GitHub and Google OAuth |
+| AI | Any OpenAI-compatible API |
 | Weather | [Open-Meteo](https://open-meteo.com) — free, no API key needed |
 | Deployment | Docker + Docker Compose |
 
@@ -213,24 +208,22 @@ Photo uploads are analysed in the background by an **arq worker** so the HTTP re
 
 ## Environment Variables
 
-Full reference for every variable in `.env.example`:
-
 | Variable | Required | Description |
 |---|---|---|
 | `NEXTAUTH_URL` | Yes | Frontend URL — `http://localhost:3000` in dev |
-| `NEXTAUTH_SECRET` | Yes | Random string ≥32 chars — run `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `NEXTAUTH_SECRET` | Yes | Random string, 32+ characters. Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 | `POSTGRES_USER` | Yes | PostgreSQL username |
 | `POSTGRES_PASSWORD` | Yes | PostgreSQL password |
 | `POSTGRES_DB` | Yes | PostgreSQL database name |
 | `DATABASE_URL` | Yes | Full async connection string — must match the postgres vars above |
-| `REDIS_URL` | Yes | Redis connection string — `redis://redis:6379` in Docker |
+| `REDIS_URL` | Yes | Redis connection — `redis://redis:6379` inside Docker |
 | `GITHUB_CLIENT_ID` | OAuth | GitHub OAuth app client ID |
 | `GITHUB_CLIENT_SECRET` | OAuth | GitHub OAuth app client secret |
 | `GOOGLE_CLIENT_ID` | OAuth | Google OAuth app client ID |
 | `GOOGLE_CLIENT_SECRET` | OAuth | Google OAuth app client secret |
 | `AI_PROVIDER` | Yes | `openai`, `google`, or `ollama` |
-| `AI_BASE_URL` | Yes | API base URL for the chosen provider |
-| `AI_API_KEY` | Yes* | API key — set to `not-needed` for Ollama |
+| `AI_BASE_URL` | Yes | API base URL for your chosen provider |
+| `AI_API_KEY` | Yes* | API key — use `not-needed` for Ollama |
 | `AI_VISION_MODEL` | Yes | Model used for image analysis |
 | `AI_TEXT_MODEL` | Yes | Model used for outfit recommendations |
 | `WEATHER_LAT` | Yes | Default latitude for weather lookups |
@@ -262,15 +255,10 @@ docker compose exec backend pytest tests/ -v
 docker compose exec frontend npm test -- --watchAll=false
 ```
 
-Lint the backend:
+Lint and type check:
 
 ```bash
 docker compose exec backend ruff check app/
-```
-
-Type check the frontend:
-
-```bash
 docker compose exec frontend npx tsc --noEmit
 ```
 
@@ -284,10 +272,10 @@ docker compose down
 
 ## Requirements
 
-- **Docker Desktop** (includes Docker Compose)
-- **4 GB RAM** minimum — 8 GB recommended if running Ollama locally
-- **GitHub or Google account** — for OAuth (both are free)
-- **An AI provider** — Ollama is free and runs entirely on your machine; OpenAI and Google Gemini have pay-per-use APIs
+- Docker Desktop
+- 4 GB RAM minimum — 8 GB if running Ollama locally
+- A GitHub or Google account for OAuth (both are free)
+- An AI provider — Ollama runs entirely on your own hardware at no cost; OpenAI and Gemini are pay-per-use
 
 ---
 
@@ -298,51 +286,40 @@ Contributions are welcome. To get started:
 ```bash
 git clone https://github.com/Gurshaan-Deol/hangar.git
 cd hangar
-
-# Start in dev mode with hot reload
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
-
-# Run tests
-docker compose exec backend pytest tests/ -v
-docker compose exec frontend npm test -- --watchAll=false
 ```
 
-Please open an issue before submitting a large PR so we can discuss the approach. Commit messages follow [Conventional Commits](https://www.conventionalcommits.org).
+Please open an issue before submitting a large PR. Commit messages follow [Conventional Commits](https://www.conventionalcommits.org).
 
 ---
 
 ## Troubleshooting
 
 **`docker compose up` fails with a database error**
+
+Run the migrations manually:
 ```bash
 docker compose exec backend alembic upgrade head
 ```
 
 **AI analysis always fails**
 
-Check the worker logs:
+Check the worker logs first:
 ```bash
 docker compose logs worker --tail=50
 ```
-Common causes: wrong `AI_API_KEY`, model not available in Ollama, or `AI_BASE_URL` unreachable from inside Docker. For Ollama, make sure you have pulled the model first:
-```bash
-ollama pull gemma3:latest
-```
+The most common causes are a wrong `AI_API_KEY`, a model that hasn't been pulled in Ollama, or `AI_BASE_URL` being unreachable from inside the Docker network. For Ollama, make sure you have run `ollama pull gemma3:latest` on the host machine before starting the stack.
 
 **OAuth login fails with a "Configuration" error**
 
-Make sure `NEXTAUTH_SECRET` is at least 32 characters and `NEXTAUTH_URL` exactly matches the URL you are accessing the app at.
+Check that `NEXTAUTH_SECRET` is at least 32 characters and that `NEXTAUTH_URL` exactly matches the URL you are using to access the app.
 
 **Photos not loading after upload**
 
-Photos are served through an authenticated endpoint. Make sure you are signed in and the backend is running:
+Photos are served through an authenticated API endpoint rather than as static files. If images aren't loading, make sure you are signed in and check the backend logs:
 ```bash
 docker compose logs backend --tail=20
 ```
-
-**Ollama is slow to analyse images**
-
-Small models like `gemma3` may take 30–60 seconds per image on CPU. Consider using a GPU-accelerated Ollama setup, or switch to `gpt-4o` or `gemini-1.5-pro` for faster analysis.
 
 ---
 
@@ -350,4 +327,4 @@ Small models like `gemma3` may take 30–60 seconds per image on CPU. Consider u
 
 [MIT](LICENSE)
 
-<!-- Suggested GitHub topics: wardrobe ai self-hosted nextjs fastapi docker ollama openai outfit-recommendations personal-assistant -->
+<!-- Suggested GitHub topics: wardrobe ai self-hosted nextjs fastapi docker ollama openai outfit-recommendations -->
