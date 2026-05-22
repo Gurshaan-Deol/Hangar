@@ -9,6 +9,7 @@ import type { ClothingItem } from "@/types/clothing";
 import { AlertDialog } from "@/components/ui/AlertDialog";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { ItemEditForm } from "@/components/clothing/ItemEditForm";
+import COLOR_MAP from "@/lib/colorMap";
 
 const STATUS_BADGE: Record<
   ClothingItem["status"],
@@ -66,13 +67,13 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
   const showDuplicateBanner = item.duplicate_of && !item.dismissed_duplicate;
 
   const handleDelete = async () => {
+    setDeleteError(null);
     setIsDeleting(true);
     try {
       await deleteClothingItem(item.id);
       onDelete(item.id);
       onClose();
-    } catch (error) {
-      console.error("Failed to delete item:", error);
+    } catch {
       setDeleteError("Failed to delete item. Please try again.");
     } finally {
       setIsDeleting(false);
@@ -235,7 +236,10 @@ export function ClothingDetailModal({ item, onClose, onDelete, onUpdate }: Cloth
                       <div className="flex items-center gap-2">
                         <span
                           className="h-3.5 w-3.5 shrink-0 rounded-full border border-white/20"
-                          style={{ backgroundColor: item.color }}
+                          style={{
+                            backgroundColor:
+                              COLOR_MAP[item.color.toLowerCase()] ?? "#6b7280",
+                          }}
                         />
                         <span className="text-sm text-gray-200">{titleCase(item.color)}</span>
                       </div>

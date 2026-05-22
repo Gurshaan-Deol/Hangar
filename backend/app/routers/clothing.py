@@ -60,7 +60,7 @@ async def list_clothing(
     """Return a paginated list of the current user's clothing items."""
     query = select(ClothingItem).where(ClothingItem.user_id == current_user.id)
     if category:
-        query = query.where(ClothingItem.category == category)
+        query = query.where(func.lower(ClothingItem.category) == category.lower())
     if status:
         query = query.where(ClothingItem.status == status)
 
@@ -268,11 +268,11 @@ async def retry_analysis(
             detail="Item can only be retried when status is 'failed' or when stuck for over 10 minutes",
         )
 
+    # Enqueue first — only commit the status change once the job is safely in the queue.
+    # Committing before enqueue risks leaving the item stuck in "pending" if enqueue fails.
     item.status = "pending"
     # Do not reset attempt_count — it tracks cumulative attempts across all retries
     # so we can detect permanently failing items
-    await db.commit()
-    await db.refresh(item)
 
     try:
         await redis.enqueue_job("analyze_clothing_image", str(item.id))
@@ -283,6 +283,8 @@ async def retry_analysis(
             detail="Could not re-enqueue analysis. Please try again.",
         )
 
+    await db.commit()
+    await db.refresh(item)
     return item
 
 

@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
+import { BACKEND_URL } from "@/lib/config";
 
 // next-auth/jwt is not a separate subpath in beta.18 — augment the Session
 // interface here and use explicit casts for extra JWT fields in callbacks.
@@ -15,8 +16,6 @@ declare module "next-auth" {
     syncError?: boolean;
   }
 }
-
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://backend:8000";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   // Required in Docker: trusts the Host header so NextAuth doesn't reject

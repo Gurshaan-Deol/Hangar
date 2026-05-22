@@ -172,16 +172,6 @@ export async function updateUserLocation(
   return data;
 }
 
-export async function getRecommendationHistory(
-  page = 1,
-  limit = 10,
-): Promise<OutfitListResponse> {
-  const { data } = await apiClient.get<OutfitListResponse>("/recommendations/history", {
-    params: { page, limit },
-  });
-  return data;
-}
-
 export async function getOutfitHistory(
   page = 1,
   limit = 20,

@@ -6,6 +6,7 @@ import { cn, titleCase } from "@/lib/utils";
 import type { ClothingItem } from "@/types/clothing";
 import { TagEditor } from "./TagEditor";
 import { SeasonPicker } from "./SeasonPicker";
+import COLOR_MAP from "@/lib/colorMap";
 
 const CATEGORIES = [
   "shirt", "top", "pants", "jeans", "shorts", "dress", "skirt",
@@ -19,21 +20,6 @@ const STYLES = [
   "outdoor", "streetwear", "loungewear", "vintage", "other",
 ];
 
-const COLOR_MAP: Record<string, string> = {
-  white: "#f0f0eb",
-  black: "#1a1a1a",
-  gray: "#8a8a8a",
-  grey: "#8a8a8a",
-  red: "#e05c5c",
-  blue: "#4b7bec",
-  navy: "#2c3e7a",
-  green: "#4ade80",
-  yellow: "#fbbf24",
-  orange: "#f97316",
-  pink: "#f472b6",
-  purple: "#a78bfa",
-  brown: "#92694a",
-};
 
 type EditFields = {
   name: string;

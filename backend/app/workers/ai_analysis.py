@@ -11,7 +11,6 @@ from pathlib import Path
 from PIL import Image, ImageEnhance, ImageFilter, ImageStat
 from arq.connections import RedisSettings
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database import AsyncSessionLocal
@@ -58,19 +57,18 @@ def preprocess_image(image_path: str) -> str:
 async def analyze_with_retry(
     provider: BaseAIProvider,
     image_path: str,
-    item: ClothingItem,
-    db: AsyncSession,
     max_attempts: int = 3,
+    on_attempt: object = None,
 ) -> ClothingAnalysis:
     """Run AI clothing analysis with automatic retries on any failure.
 
-    Increments item.attempt_count before each attempt so the frontend can show
-    live progress. Sleeps 2 seconds between attempts.
+    Calls on_attempt(attempt_num) before each attempt so the caller can persist
+    progress. Sleeps 2 seconds between attempts.
     """
     for attempt in range(1, max_attempts + 1):
         logger.info("Analysis attempt %d/%d for %s", attempt, max_attempts, image_path)
-        item.attempt_count = attempt
-        await db.commit()
+        if on_attempt is not None:
+            await on_attempt(attempt)
 
         try:
             return await provider.analyze_clothing_image(image_path)
@@ -150,6 +148,8 @@ async def analyze_clothing_image(ctx: dict, item_id: str) -> None:
             logger.warning("ClothingItem %s not found — skipping analysis", item_id)
             return
 
+        local_attempt_count = 0
+
         try:
             item.status = "analyzing"
             await db.commit()
@@ -157,15 +157,20 @@ async def analyze_clothing_image(ctx: dict, item_id: str) -> None:
             cleaned_path = await asyncio.to_thread(remove_background, item.image_path)
             if cleaned_path != item.image_path:
                 item.image_path = cleaned_path
-                item.image_url = f"/uploads/{item.user_id}/{Path(cleaned_path).name}"
                 await db.commit()
 
             provider = get_ai_provider()
 
+            async def _on_attempt(attempt_num: int) -> None:
+                nonlocal local_attempt_count
+                local_attempt_count = attempt_num
+                item.attempt_count = attempt_num
+                await db.commit()
+
             processed_path = await asyncio.to_thread(preprocess_image, cleaned_path)
             try:
                 analysis = _normalize_analysis(
-                    await analyze_with_retry(provider, processed_path, item, db)
+                    await analyze_with_retry(provider, processed_path, on_attempt=_on_attempt)
                 )
             finally:
                 if processed_path != cleaned_path and os.path.exists(processed_path):
@@ -245,6 +250,10 @@ async def analyze_clothing_image(ctx: dict, item_id: str) -> None:
                 failed_item = refetch.scalar_one_or_none()
                 if failed_item:
                     failed_item.status = "failed"
+                    # Use locally-tracked count: rollback cannot erase it even if
+                    # the last attempt_count commit was part of a rolled-back txn.
+                    if local_attempt_count:
+                        failed_item.attempt_count = local_attempt_count
                     failed_item.ai_raw_response = str(exc)
                     await db.commit()
             except Exception:

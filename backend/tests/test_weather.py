@@ -17,7 +17,11 @@ async def test_get_weather_returns_data():
             "relativehumidity_2m": 65,
             "windspeed_10m": 12.0,
             "is_day": 1,
-        }
+        },
+        "daily": {
+            "temperature_2m_max": [22.0],
+            "temperature_2m_min": [14.0],
+        },
     }
     mock_response.raise_for_status = MagicMock()
 
@@ -51,6 +55,8 @@ async def test_get_weather_uses_cache():
         is_daytime=True,
         location="43.7,-79.4",
         fetched_at=datetime.now(timezone.utc),
+        temp_max=24.0,
+        temp_min=15.0,
     )
 
     # Serialize the same way _write_to_redis does

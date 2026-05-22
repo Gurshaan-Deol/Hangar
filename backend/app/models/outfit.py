@@ -24,11 +24,16 @@ def _utcnow() -> datetime:
 outfit_items = Table(
     "outfit_items",
     Base.metadata,
-    Column("outfit_id", UUID(as_uuid=True), ForeignKey("outfits.id"), primary_key=True),
+    Column(
+        "outfit_id",
+        UUID(as_uuid=True),
+        ForeignKey("outfits.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
     Column(
         "clothing_item_id",
         UUID(as_uuid=True),
-        ForeignKey("clothing_items.id"),
+        ForeignKey("clothing_items.id", ondelete="CASCADE"),
         primary_key=True,
     ),
 )

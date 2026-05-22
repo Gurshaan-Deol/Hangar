@@ -1,7 +1,6 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-
-const BACKEND = process.env.BACKEND_URL ?? "http://backend:8000";
+import { BACKEND_URL as BACKEND } from "@/lib/config";
 
 /**
  * Proxy all /api/proxy/* requests to the backend, injecting the NextAuth

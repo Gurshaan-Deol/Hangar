@@ -15,28 +15,23 @@ interface AnalysisStatusProps {
   onComplete: (item: ClothingItem) => void;
 }
 
-function useElapsedMs(active: boolean) {
+function useElapsedSeconds(active: boolean): number {
   const [elapsed, setElapsed] = useState(0);
-  const startRef = useRef<number | null>(null);
-  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!active) { setElapsed(0); startRef.current = null; return; }
-    startRef.current = Date.now();
-    const tick = () => {
-      setElapsed(Date.now() - (startRef.current ?? Date.now()));
-      rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    if (!active) { setElapsed(0); return; }
+    const interval = setInterval(() => {
+      setElapsed((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
   }, [active]);
 
   return elapsed;
 }
 
-function statusMessage(elapsed: number) {
-  if (elapsed >= 30_000) return "This is taking longer than usual…";
-  if (elapsed >= 10_000) return "Still working…";
+function statusMessage(elapsedSeconds: number) {
+  if (elapsedSeconds >= 30) return "This is taking longer than usual…";
+  if (elapsedSeconds >= 10) return "Still working…";
   return "Analyzing your item…";
 }
 
@@ -54,7 +49,7 @@ export function AnalysisStatus({
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isActive = !timedOut && (status === "pending" || status === "analyzing");
-  const elapsed = useElapsedMs(isActive);
+  const elapsed = useElapsedSeconds(isActive);
 
   const stopPolling = useCallback(() => {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
