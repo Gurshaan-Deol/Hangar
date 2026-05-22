@@ -2,7 +2,6 @@
 
 **Self-hosted AI wardrobe manager. Upload your clothes, get outfit suggestions based on today's weather.**
 
-[![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-orange?style=flat-square)](https://claude.ai/code)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org)
