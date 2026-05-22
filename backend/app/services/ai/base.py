@@ -104,10 +104,16 @@ class BaseAIProvider(ABC):
         weather: "WeatherData",  # noqa: F821 — resolved at runtime
         occasion: str = "casual",
         custom_request: str | None = None,
+        locked_item_ids: list[str] | None = None,
+        recent_outfits: list[dict] | None = None,
+        user_instruction: str | None = None,
     ) -> dict:
         """Suggest an outfit from the wardrobe given current weather and occasion.
 
-        When custom_request is provided it takes precedence over occasion.
+        When custom_request is provided it is merged into occasion.
+        locked_item_ids forces specific items into the outfit.
+        recent_outfits (last 7 days) are used to avoid repetition.
+        user_instruction is a free-text constraint (e.g. "no jackets today").
         """
         ...
 

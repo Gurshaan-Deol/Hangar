@@ -19,6 +19,9 @@ export interface Outfit {
   weather_temp_min: number | null;
   weather_temp_max: number | null;
   ai_reasoning: string | null;
+  style_tip: string | null;
+  locked_item_ids: string[];
+  user_instruction: string | null;
   rating: number | null;
   is_favourite: boolean;
   wear_count: number;

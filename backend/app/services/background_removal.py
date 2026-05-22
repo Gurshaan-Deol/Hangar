@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 def remove_background(image_path: str) -> str:
-    """Remove the background from an image and save the result as a PNG.
+    """Remove the background from an image and save the result as a transparent PNG.
 
     Runs synchronously (rembg is CPU-bound); call via asyncio.to_thread in async contexts.
 
@@ -15,15 +15,16 @@ def remove_background(image_path: str) -> str:
     """
     try:
         import rembg
-        from PIL import Image
 
         src = Path(image_path)
         new_path = src.parent / (src.stem + "_nobg.png")
 
-        with Image.open(src) as img:
-            result_image = rembg.remove(img)
+        # Pass raw bytes so rembg returns raw PNG bytes — this guarantees the alpha
+        # channel is preserved. Passing a PIL Image can cause white compositing in
+        # some rembg versions before the result is returned.
+        output_bytes = rembg.remove(src.read_bytes())
+        new_path.write_bytes(output_bytes)
 
-        result_image.save(new_path, format="PNG")
         logger.info("Background removed for %s → %s", image_path, new_path)
         return str(new_path)
 

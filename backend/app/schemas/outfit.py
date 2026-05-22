@@ -1,6 +1,7 @@
 """Pydantic request/response schemas for outfit endpoints."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, field_validator
@@ -35,10 +36,20 @@ class OutfitResponse(OutfitBase):
     items: list[ClothingItemResponse]
     is_favourite: bool
     wear_count: int
+    style_tip: str | None = None
+    locked_item_ids: list[str] = []
+    user_instruction: str | None = None
     created_at: datetime
     worn_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+    @field_validator("locked_item_ids", mode="before")
+    @classmethod
+    def coerce_locked_item_ids(cls, v: object) -> list[str]:
+        if v is None:
+            return []
+        return list(v)
 
 
 class OutfitListResponse(BaseModel):
@@ -46,3 +57,11 @@ class OutfitListResponse(BaseModel):
     total: int
     page: int
     limit: int
+
+
+class OutfitFeedbackCreate(BaseModel):
+    rating: Literal["up", "down"]
+
+
+class OutfitFeedbackResponse(BaseModel):
+    rating: Literal["up", "down"]

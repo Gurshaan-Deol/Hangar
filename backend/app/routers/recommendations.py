@@ -13,9 +13,10 @@ from sqlalchemy.orm import selectinload
 from app.config import get_settings
 from app.database import get_db
 from app.dependencies import get_current_user, get_redis
-from app.models.outfit import Outfit
+from app.models.outfit import Outfit, OutfitFeedback
 from app.models.user import User
-from app.schemas.outfit import OutfitListResponse, OutfitResponse, OutfitUpdate
+from app.schemas.outfit import OutfitFeedbackCreate, OutfitFeedbackResponse, OutfitListResponse, OutfitResponse, OutfitUpdate
+from app.services.geocoding import reverse_geocode, search_city
 from app.services.recommendations import get_outfit_recommendation
 from app.services.weather import WeatherData, get_current_weather
 
@@ -26,6 +27,8 @@ _MIN_REQUIRED = 3
 class RecommendationRequest(BaseModel):
     occasion: str | None = Field(None, pattern=_VALID_OCCASIONS)
     custom_request: str | None = Field(None, max_length=300)
+    locked_item_ids: list[str] = Field(default_factory=list)
+    user_instruction: str | None = Field(None, max_length=150)
 
 logger = logging.getLogger(__name__)
 
@@ -70,13 +73,57 @@ async def _get_owned_outfit(outfit_id: str, user: User, db: AsyncSession) -> Out
 
 @router.get("/weather")
 async def current_weather(
+    lat: float | None = Query(None),
+    lon: float | None = Query(None),
     user: User = Depends(get_current_user),
     redis: Redis = Depends(get_redis),
 ) -> dict:
-    """Return current weather conditions for the user's configured location."""
-    lat, lon = _resolve_location(user)
-    weather = await get_current_weather(lat, lon, redis)
+    """Return current weather conditions for the given or user-configured location.
+
+    If lat/lon query params are supplied they take precedence; otherwise the user's
+    saved location (or the server default from .env) is used.
+    """
+    if lat is not None and lon is not None:
+        resolved_lat, resolved_lon = lat, lon
+    else:
+        resolved_lat, resolved_lon = _resolve_location(user)
+    weather = await get_current_weather(resolved_lat, resolved_lon, redis)
     return _weather_dict(weather)
+
+
+@router.get("/geocode/reverse")
+async def geocode_reverse(
+    lat: float = Query(...),
+    lon: float = Query(...),
+    _user: User = Depends(get_current_user),
+    redis: Redis = Depends(get_redis),
+) -> dict:
+    """Return city/region/country for given coordinates using Nominatim."""
+    try:
+        return await reverse_geocode(lat, lon, redis)
+    except Exception:
+        logger.exception("Reverse geocode failed for (%.4f, %.4f)", lat, lon)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Geocoding service unavailable. Please try again.",
+        )
+
+
+@router.get("/geocode/search")
+async def geocode_search(
+    q: str = Query(..., min_length=1, max_length=100),
+    _user: User = Depends(get_current_user),
+    redis: Redis = Depends(get_redis),
+) -> list[dict]:
+    """Search for cities matching a query string using Nominatim."""
+    try:
+        return await search_city(q, redis)
+    except Exception:
+        logger.exception("City search failed for query: %s", q)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Geocoding service unavailable. Please try again.",
+        )
 
 
 @router.get("/history", response_model=OutfitListResponse)
@@ -120,7 +167,13 @@ async def get_recommendation(
 
     occasion = body.occasion or "casual"
     result = await get_outfit_recommendation(
-        db, user, weather, occasion, body.custom_request
+        db,
+        user,
+        weather,
+        occasion,
+        body.custom_request,
+        locked_item_ids=body.locked_item_ids,
+        user_instruction=body.user_instruction,
     )
 
     if isinstance(result, dict) and "error" in result:
@@ -140,6 +193,38 @@ async def get_recommendation(
         "outfit": outfit_response.model_dump(),
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@router.post("/{outfit_id}/feedback", response_model=OutfitFeedbackResponse)
+async def submit_feedback(
+    outfit_id: str,
+    body: OutfitFeedbackCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> OutfitFeedbackResponse:
+    """Submit thumbs-up or thumbs-down feedback for an outfit (upsert per user)."""
+    outfit = await _get_owned_outfit(outfit_id, user, db)
+
+    existing_result = await db.execute(
+        select(OutfitFeedback).where(
+            OutfitFeedback.outfit_id == outfit.id,
+            OutfitFeedback.user_id == user.id,
+        )
+    )
+    feedback = existing_result.scalar_one_or_none()
+
+    if feedback:
+        feedback.rating = body.rating
+    else:
+        feedback = OutfitFeedback(
+            outfit_id=outfit.id,
+            user_id=user.id,
+            rating=body.rating,
+        )
+        db.add(feedback)
+
+    await db.commit()
+    return OutfitFeedbackResponse(rating=body.rating)
 
 
 @router.patch("/{outfit_id}", response_model=OutfitResponse)

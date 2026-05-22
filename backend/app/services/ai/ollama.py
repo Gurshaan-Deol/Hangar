@@ -21,6 +21,7 @@ from app.services.ai.prompts import (
     OLLAMA_ANALYSIS_SYSTEM,
     OLLAMA_ANALYSIS_USER,
     OUTFIT_RECOMMENDATION_SYSTEM,
+    build_recommendation_prompt,
 )
 
 if TYPE_CHECKING:
@@ -118,35 +119,25 @@ Return only the JSON object, nothing else."""
         weather: WeatherData,
         occasion: str = "casual",
         custom_request: str | None = None,
+        locked_item_ids: list[str] | None = None,
+        recent_outfits: list[dict] | None = None,
+        user_instruction: str | None = None,
     ) -> dict:
-        """Select 3-5 items from the wardrobe that suit the current weather and occasion."""
-        if custom_request:
-            outfit_goal = f"The user's outfit goal (natural language): {custom_request}"
-            occasion_json = "custom"
-        else:
-            outfit_goal = f"The user wants an outfit for: {occasion}"
-            occasion_json = occasion
-
-        user_prompt = f"""
-{outfit_goal}
-Current weather: {weather.temperature}°C (today's range: {weather.temp_min}°C – {weather.temp_max}°C), feels like {weather.feels_like}°C, {weather.condition}, humidity {weather.humidity}%
-
-Available clothing items:
-{json.dumps(items, indent=2)}
-
-Select 3-5 items that work well together. Consider:
-- Temperature appropriateness (layers for cold, light for heat, waterproof for rain)
-- Style cohesion (items should match in formality and aesthetic)
-- Color coordination
-
-Return a JSON object with exactly:
-{{
-  "selected_item_ids": ["id1", "id2", "id3"],
-  "reasoning": "Brief explanation of why these items work together and suit the weather",
-  "occasion": "{occasion_json}"
-}}
-Return only the JSON object, nothing else.
-"""
+        """Select a cohesive outfit from the wardrobe using the structured stylist prompt."""
+        weather_dict = {
+            "temperature": weather.temperature,
+            "feels_like": weather.feels_like,
+            "condition": weather.condition,
+            "humidity": weather.humidity,
+        }
+        user_prompt = build_recommendation_prompt(
+            weather=weather_dict,
+            occasion=occasion,
+            wardrobe_items=items,
+            recent_outfits=recent_outfits or [],
+            locked_item_ids=locked_item_ids or [],
+            user_instruction=user_instruction,
+        )
 
         raw = await call_openai_compatible_api(
             base_url=self._base_url,
@@ -157,7 +148,7 @@ Return only the JSON object, nothing else.
                 {"role": "user", "content": user_prompt},
             ],
             include_auth=False,
-            max_tokens=512,
+            max_tokens=768,
             timeout=60.0,
         )
         return extract_json_from_response(raw)

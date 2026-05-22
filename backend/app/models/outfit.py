@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for a saved outfit (collection of clothing items)."""
+"""SQLAlchemy ORM models for saved outfits and per-outfit user feedback."""
 
 from __future__ import annotations
 
@@ -6,8 +6,19 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Table, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -51,6 +62,9 @@ class Outfit(Base):
     weather_temp_min: Mapped[float | None] = mapped_column(Float, nullable=True)
     weather_temp_max: Mapped[float | None] = mapped_column(Float, nullable=True)
     ai_reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
+    style_tip: Mapped[str | None] = mapped_column(Text, nullable=True)
+    locked_item_ids: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
+    user_instruction: Mapped[str | None] = mapped_column(String(300), nullable=True)
     rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_favourite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     wear_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
@@ -63,4 +77,22 @@ class Outfit(Base):
     user: Mapped[User] = relationship("User", back_populates="outfits")
     items: Mapped[list[ClothingItem]] = relationship(
         "ClothingItem", secondary=outfit_items
+    )
+
+
+class OutfitFeedback(Base):
+    __tablename__ = "outfit_feedback"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    outfit_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("outfits.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    rating: Mapped[str] = mapped_column(String(4), nullable=False)  # "up" | "down"
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("outfit_id", "user_id", name="uq_outfit_feedback_outfit_user"),
     )

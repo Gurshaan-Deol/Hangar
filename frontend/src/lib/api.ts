@@ -7,6 +7,7 @@ import type {
   OutfitListResponse,
   Occasion,
 } from "@/types/recommendations";
+import type { GeocodingResult, ReverseGeocodeResult } from "@/types/geocoding";
 
 export class ApiError extends Error {
   public detail?: string | Record<string, unknown>;
@@ -128,18 +129,44 @@ export async function updateClothingDetails(
   return updated;
 }
 
-export async function getWeather(): Promise<WeatherData> {
-  const { data } = await apiClient.get<WeatherData>("/recommendations/weather");
+export async function getWeather(lat?: number, lon?: number): Promise<WeatherData> {
+  const params: Record<string, number> = {};
+  if (lat !== undefined) params.lat = lat;
+  if (lon !== undefined) params.lon = lon;
+  const { data } = await apiClient.get<WeatherData>("/recommendations/weather", { params });
+  return data;
+}
+
+export async function reverseGeocode(lat: number, lon: number): Promise<ReverseGeocodeResult> {
+  const { data } = await apiClient.get<ReverseGeocodeResult>("/recommendations/geocode/reverse", {
+    params: { lat, lon },
+  });
+  return data;
+}
+
+export async function searchCity(query: string): Promise<GeocodingResult[]> {
+  const { data } = await apiClient.get<GeocodingResult[]>("/recommendations/geocode/search", {
+    params: { q: query },
+  });
   return data;
 }
 
 export async function getRecommendations(
   occasion: Occasion | null,
   customRequest?: string,
+  lockedItemIds?: string[],
+  userInstruction?: string,
 ): Promise<RecommendationResponse> {
-  const body: { occasion?: Occasion; custom_request?: string } = {};
+  const body: {
+    occasion?: Occasion;
+    custom_request?: string;
+    locked_item_ids?: string[];
+    user_instruction?: string;
+  } = {};
   if (occasion) body.occasion = occasion;
   if (customRequest) body.custom_request = customRequest;
+  if (lockedItemIds?.length) body.locked_item_ids = lockedItemIds;
+  if (userInstruction) body.user_instruction = userInstruction;
   try {
     const { data } = await apiClient.post<RecommendationResponse>("/recommendations", body);
     return data;
@@ -157,6 +184,13 @@ export async function getRecommendations(
     }
     throw err;
   }
+}
+
+export async function submitFeedback(
+  outfitId: string,
+  rating: "up" | "down",
+): Promise<void> {
+  await apiClient.post(`/recommendations/${outfitId}/feedback`, { rating });
 }
 
 export async function getCurrentUser(): Promise<User> {

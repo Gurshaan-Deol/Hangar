@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,7 +58,6 @@ async def get_relevant_items(
     )
 
     if weather.condition in ("rain", "stormy"):
-        # Always include outerwear regardless of season filter
         query = query.where(
             or_(season_filter, ClothingItem.category.in_(["jacket", "coat"]))
         )
@@ -81,19 +81,62 @@ async def get_relevant_items(
     return items
 
 
+async def _get_recent_outfit_summaries(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    days: int = 7,
+) -> list[dict]:
+    """Return a list of {item_ids} dicts for outfits generated in the last `days` days."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    result = await db.execute(
+        select(Outfit)
+        .where(Outfit.user_id == user_id, Outfit.created_at >= cutoff)
+        .options(selectinload(Outfit.items))
+    )
+    outfits = result.scalars().all()
+    return [{"item_ids": [str(item.id) for item in outfit.items]} for outfit in outfits]
+
+
 async def get_outfit_recommendation(
     db: AsyncSession,
     user: User,
     weather: WeatherData,
     occasion: str = "casual",
     custom_request: str | None = None,
+    locked_item_ids: list[str] | None = None,
+    user_instruction: str | None = None,
 ) -> Outfit | dict:
     """Generate an AI outfit recommendation based on the user's wardrobe and current weather.
 
-    When custom_request is provided it is passed to the AI instead of the occasion label.
+    locked_item_ids forces specific items into the outfit regardless of weather filter.
+    user_instruction is passed verbatim to the AI as a styling constraint.
     Returns an Outfit ORM instance on success, or an error dict when preconditions fail.
     """
+    locked_item_ids = locked_item_ids or []
     items = await get_relevant_items(db, user.id, weather)
+
+    # Ensure locked items are always present, even if they failed the weather filter.
+    if locked_item_ids:
+        existing_ids = {item.id for item in items}
+        locked_uuids: list[uuid.UUID] = []
+        for lid in locked_item_ids:
+            try:
+                locked_uuids.append(uuid.UUID(lid))
+            except ValueError:
+                logger.warning("Invalid UUID in locked_item_ids: %s", lid)
+
+        if locked_uuids:
+            extra_result = await db.execute(
+                select(ClothingItem).where(
+                    ClothingItem.id.in_(locked_uuids),
+                    ClothingItem.user_id == user.id,
+                    ClothingItem.status == "ready",
+                )
+            )
+            for locked_item in extra_result.scalars().all():
+                if locked_item.id not in existing_ids:
+                    items.append(locked_item)
+                    existing_ids.add(locked_item.id)
 
     if len(items) < _MIN_ITEMS:
         return {
@@ -117,20 +160,42 @@ async def get_outfit_recommendation(
         for item in items
     ]
 
-    ai = get_ai_provider()
-    ai_response = await ai.generate_outfit_recommendation(inventory, weather, occasion, custom_request)
+    recent_outfits = await _get_recent_outfit_summaries(db, user.id)
 
-    selected_ids = ai_response.get("selected_item_ids", [])
+    ai = get_ai_provider()
+    ai_response = await ai.generate_outfit_recommendation(
+        inventory,
+        weather,
+        occasion,
+        custom_request,
+        locked_item_ids=locked_item_ids,
+        recent_outfits=recent_outfits,
+        user_instruction=user_instruction,
+    )
+
+    # Support both the new "item_ids" key and the legacy "selected_item_ids" key.
+    raw_ids = ai_response.get("item_ids") or ai_response.get("selected_item_ids", [])
     reasoning = ai_response.get("reasoning", "")
+    style_tip = ai_response.get("style_tip")
     returned_occasion = ai_response.get("occasion", occasion)
 
-    # Convert string IDs from AI to UUID objects for the IN query
-    selected_uuids = []
-    for sid in selected_ids:
+    selected_uuids: list[uuid.UUID] = []
+    for sid in raw_ids:
         try:
             selected_uuids.append(uuid.UUID(str(sid)))
         except ValueError:
             logger.warning("AI returned invalid item ID: %s", sid)
+
+    # Verify every selected ID exists in the user's wardrobe; log and drop unknown ones.
+    valid_inventory_ids = {item.id for item in items}
+    unknown = [uid for uid in selected_uuids if uid not in valid_inventory_ids]
+    if unknown:
+        logger.warning(
+            "AI returned %d item ID(s) not in this user's wardrobe — filtering out: %s",
+            len(unknown),
+            unknown,
+        )
+        selected_uuids = [uid for uid in selected_uuids if uid in valid_inventory_ids]
 
     selected_result = await db.execute(
         select(ClothingItem).where(
@@ -146,13 +211,15 @@ async def get_outfit_recommendation(
         weather_temp_min=weather.temp_min,
         weather_temp_max=weather.temp_max,
         ai_reasoning=reasoning,
+        style_tip=style_tip,
+        locked_item_ids=locked_item_ids or None,
+        user_instruction=user_instruction,
         items=list(selected_items),
     )
     db.add(outfit)
     await db.commit()
     await db.refresh(outfit)
 
-    # Re-fetch with items eagerly loaded so the relationship is accessible
     outfit_result = await db.execute(
         select(Outfit)
         .where(Outfit.id == outfit.id)
