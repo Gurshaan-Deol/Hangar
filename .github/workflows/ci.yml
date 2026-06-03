@@ -39,7 +39,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hangar_test
       REDIS_URL: redis://localhost:6379/0
-      SECRET_KEY: test-secret-key-for-ci
+      NEXTAUTH_SECRET: test-secret-key-for-ci-placeholder-32c
 
     steps:
       - uses: actions/checkout@v4
@@ -87,7 +87,7 @@ jobs:
 
       - name: Lint
         working-directory: frontend
-        run: npx eslint src/ --max-warnings 0
+        run: npm run lint -- --max-warnings 0
 
       - name: Test
         working-directory: frontend
