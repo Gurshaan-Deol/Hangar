@@ -2,6 +2,7 @@
 
 A self-hosted wardrobe manager that uses AI to catalogue your clothes and suggest outfits based on the weather.
 
+[![CI](https://github.com/Gurshaan-Deol/Hangar/actions/workflows/ci.yml/badge.svg)](https://github.com/Gurshaan-Deol/Hangar/actions/workflows/ci.yml)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org)
